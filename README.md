@@ -3,6 +3,7 @@
 > AI-powered talent mapping for recruiters and sourcers. Know *where* to look before you start searching.
 
 **Live:** It's only for internal use 
+
 **Repo:** [github.com/Manubarki/SourcingCompass2](https://github.com/Manubarki/SourcingCompass2)
 
 ---
