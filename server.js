@@ -122,21 +122,37 @@ app.post("/api/source", async (req, res) => {
   // Pick top 8 companies by score (pre-ranked from frontend)
   const targets = companies.slice(0, 8);
 
-  // Normalised target names for strict company matching later
+  // Normalised target names for strict company matching
   const normalisedTargets = targets.map(t => t.toLowerCase().replace(/[^a-z0-9]/g, ""));
 
-  // Build 2 X-ray queries per company, both including must-have skills:
-  // Query 1: role + top skill (highest signal)
-  // Query 2: role + second skill or seniority (broader net)
+  // Seniority synonyms — broaden matching for title relevance check
+  const SENIORITY_SYNONYMS = {
+    "junior":    ["junior", "associate", "entry"],
+    "mid":       ["mid", "intermediate", "engineer ii", "engineer 2"],
+    "senior":    ["senior", "sr."],
+    "staff":     ["staff", "senior staff", "staff engineer", "senior staff engineer"],
+    "principal": ["principal", "distinguished"],
+    "director":  ["director", "head of", "engineering manager"],
+    "vp":        ["vp", "vice president", "head of engineering"],
+  };
+  const seniorityKey = (seniority || "").toLowerCase();
+  const seniorityTerms = SENIORITY_SYNONYMS[seniorityKey] || [seniorityKey];
+
+  // Core role keywords (strip seniority prefix to get the function, e.g. "data engineer")
+  const roleCore = role.toLowerCase()
+    .replace(/^(junior|mid|senior|staff|principal|director|vp)\s+/i, "")
+    .trim();
+
+  // Build 2 X-ray queries per company — both include role + seniority + top skill
   const topSkill = skills?.[0] || "";
-  const secondSkill = skills?.[1] || seniority || "";
+  const secondSkill = skills?.[1] || "";
   const queries = targets.flatMap(company => {
-    const q1 = topSkill
-      ? `site:linkedin.com/in "${company}" "${role}" "${topSkill}"`
-      : `site:linkedin.com/in "${company}" "${role}" "${seniority}"`;
+    // Q1: exact role + seniority + top skill (tightest signal)
+    const q1 = `site:linkedin.com/in "${company}" "${seniority} ${roleCore}" "${topSkill || role}"`;
+    // Q2: role + second skill (catches title variations like "Staff Data Engineer" vs "Staff Engineer")
     const q2 = secondSkill
       ? `site:linkedin.com/in "${company}" "${role}" "${secondSkill}"`
-      : `site:linkedin.com/in "${company}" "${role}"`;
+      : `site:linkedin.com/in "${company}" "${roleCore}" "${seniority}"`;
     return [q1, q2];
   });
 
@@ -165,36 +181,45 @@ app.post("/api/source", async (req, res) => {
     const snippet = result.snippet || "";
     const title = result.title || "";
 
-    // Extract name from LinkedIn title format: "Name - Title at Company | LinkedIn"
+    // Name: "Name - Title at Company | LinkedIn"
     const nameMatch = title.match(/^([^-|]+)/);
     const name = nameMatch ? nameMatch[1].trim() : "Unknown";
 
-    // Extract role+company from title
+    // Title + company from Google title string
     const roleMatch = title.match(/- (.+?) (?:at|@) (.+?)(?:\s*\||$)/i)
       || title.match(/- (.+?) \| /i);
     const currentTitle = roleMatch ? roleMatch[1].trim() : "";
     const currentCompany = roleMatch?.[2]?.trim() || "";
 
-    // Best-effort email from snippet
+    // Best-effort email
     const emailMatch = snippet.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
     const email = emailMatch ? emailMatch[0] : null;
 
-    // Source company: which target company did this query come from
+    // Source company match
     const sourceCompany = targets.find(c =>
       url.toLowerCase().includes(c.toLowerCase().replace(/\s+/g, "")) ||
       snippet.toLowerCase().includes(c.toLowerCase()) ||
       title.toLowerCase().includes(c.toLowerCase())
     ) || currentCompany || "";
 
-    // Relevance score: keyword overlap with role + skills + seniority
-    const kw = [role, ...(skills || []), seniority || ""].map(k => k.toLowerCase());
-    const text = [name, currentTitle, currentCompany, snippet].join(" ").toLowerCase();
-    const score = kw.reduce((n, k) => n + (k && text.includes(k) ? 1 : 0), 0);
+    // Relevance score
+    const kw = [role, roleCore, ...(skills || []), seniority || ""].map(k => k.toLowerCase());
+    const fullText = [name, currentTitle, currentCompany, snippet].join(" ").toLowerCase();
+    const score = kw.reduce((n, k) => n + (k && fullText.includes(k) ? 1 : 0), 0);
 
     return { name, currentTitle, currentCompany: currentCompany || sourceCompany, linkedinUrl: url, email, snippet, score };
   }
 
-  // Strict target company filter — candidate must be from one of the 8 targets
+  // Title relevance check — must contain role core OR a seniority term
+  function hasTitleMatch(candidate) {
+    const t = (candidate.currentTitle || "").toLowerCase();
+    const s = (candidate.snippet || "").toLowerCase();
+    const hasRoleCore = roleCore.split(" ").filter(w => w.length > 3).some(w => t.includes(w) || s.includes(w));
+    const hasSeniority = seniorityTerms.some(term => t.includes(term) || s.includes(term));
+    return hasRoleCore || hasSeniority;
+  }
+
+  // Strict target company filter
   function isFromTargetCompany(candidate) {
     const companyNorm = (candidate.currentCompany || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const snippetNorm = (candidate.snippet || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -206,7 +231,7 @@ app.post("/api/source", async (req, res) => {
     );
   }
 
-  // Deduplicate by LinkedIn URL, filter to target companies only, rank by relevance
+  // Deduplicate, filter, rank
   const seen = new Set();
   const candidates = rawResults
     .map(parseCandidate)
@@ -214,7 +239,7 @@ app.post("/api/source", async (req, res) => {
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      return c.name && c.name !== "Unknown" && isFromTargetCompany(c);
+      return c.name && c.name !== "Unknown" && isFromTargetCompany(c) && hasTitleMatch(c);
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
