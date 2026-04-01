@@ -119,20 +119,25 @@ app.post("/api/source", async (req, res) => {
   const SERPER_KEY = process.env.SERPER_API_KEY;
   if (!SERPER_KEY) return res.status(500).json({ error: "SERPER_API_KEY not configured" });
 
-  // Pick top 8 companies by score (they arrive pre-ranked from the frontend)
+  // Pick top 8 companies by score (pre-ranked from frontend)
   const targets = companies.slice(0, 8);
 
-  // Build 2 X-ray queries per company:
-  // Query 1: role title + company
-  // Query 2: top skill + company (more likely to surface niche profiles)
+  // Build 2 X-ray queries per company, both including must-have skills:
+  // Query 1: role + top skill (highest signal)
+  // Query 2: role + second skill or seniority (broader net)
   const topSkill = skills?.[0] || "";
+  const secondSkill = skills?.[1] || seniority || "";
   const queries = targets.flatMap(company => {
-    const base = `site:linkedin.com/in "${company}" "${role}"`;
-    const skill = topSkill ? `site:linkedin.com/in "${company}" "${topSkill}"` : null;
-    return skill ? [base, skill] : [base];
+    const q1 = topSkill
+      ? `site:linkedin.com/in "${company}" "${role}" "${topSkill}"`
+      : `site:linkedin.com/in "${company}" "${role}" "${seniority}"`;
+    const q2 = secondSkill
+      ? `site:linkedin.com/in "${company}" "${role}" "${secondSkill}"`
+      : `site:linkedin.com/in "${company}" "${role}"`;
+    return [q1, q2];
   });
 
-  // Fire all queries in parallel (max 16 at once — well within Serper's rate limits)
+  // Fire all queries in parallel
   let rawResults = [];
   try {
     const responses = await Promise.all(
@@ -161,7 +166,7 @@ app.post("/api/source", async (req, res) => {
     const nameMatch = title.match(/^([^-|]+)/);
     const name = nameMatch ? nameMatch[1].trim() : "Unknown";
 
-    // Extract role+company from title or snippet
+    // Extract role+company from title
     const roleMatch = title.match(/- (.+?) (?:at|@) (.+?)(?:\s*\||$)/i)
       || title.match(/- (.+?) \| /i);
     const currentTitle = roleMatch ? roleMatch[1].trim() : "";
@@ -178,7 +183,7 @@ app.post("/api/source", async (req, res) => {
       title.toLowerCase().includes(c.toLowerCase())
     ) || currentCompany || "";
 
-    // Relevance score: keyword overlap with role + skills
+    // Relevance score: keyword overlap with role + skills + seniority
     const kw = [role, ...(skills || []), seniority || ""].map(k => k.toLowerCase());
     const text = [name, currentTitle, currentCompany, snippet].join(" ").toLowerCase();
     const score = kw.reduce((n, k) => n + (k && text.includes(k) ? 1 : 0), 0);
