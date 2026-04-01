@@ -2,7 +2,7 @@
 
 > AI-powered talent mapping for recruiters and sourcers. Know *where* to look before you start searching.
 
-**Live:** [sourcingcompass2-production.up.railway.app](https://sourcingcompass2-production.up.railway.app)  
+**Live:** It's only for internal use 
 **Repo:** [github.com/Manubarki/SourcingCompass2](https://github.com/Manubarki/SourcingCompass2)
 
 ---
