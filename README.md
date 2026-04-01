@@ -2,6 +2,9 @@
 
 > AI-powered talent mapping for recruiters and sourcers. Know *where* to look before you start searching.
 
+**Live:** [sourcingcompass2-production.up.railway.app](https://sourcingcompass2-production.up.railway.app)  
+**Repo:** [github.com/Manubarki/SourcingCompass2](https://github.com/Manubarki/SourcingCompass2)
+
 ---
 
 ## What is SourcingCompass?
@@ -52,7 +55,7 @@ The exact job titles you should search on LinkedIn or job boards. These are real
 
 ## How do I use it?
 
-1. **Open the tool** at [sourcing-compass.vercel.app](https://sourcing-compass.vercel.app)
+1. **Open the tool** at [sourcingcompass2-production.up.railway.app](https://sourcingcompass2-production.up.railway.app)
 2. **Fill in the left panel:**
    - **Role Title** — the role you're hiring for (e.g. "Staff Backend Engineer")
    - **Hiring Company** — your company (so it doesn't show up in results)
@@ -61,49 +64,111 @@ The exact job titles you should search on LinkedIn or job boards. These are real
    - **Must-Have Skills** — type a skill and press `,` or `Enter` to add it as a tag
    - **Preferred Industries** — industries to focus on (optional)
    - **Exclusions** — companies or industries you want to skip
+   - **Paste Job Description** — drop a full JD to auto-fill all fields instantly
 3. **Click Generate Map**
-4. **Explore the results** — hover over any card to see laser lines connecting related companies and titles
+4. **Explore the results** — hover over any card to see why it was recommended
 
 ---
 
 ## How does it work?
 
-Here's the simple version:
-
-1. You fill in your search parameters
-2. SourcingCompass sends those details to an AI with a detailed set of instructions
-3. The AI thinks about your role and generates a structured talent map based on its knowledge of the industry
-4. The results are displayed as an interactive map you can explore
+1. You fill in your search parameters (or paste a JD)
+2. SourcingCompass sends those details to Claude via the Atlan LiteLLM proxy
+3. The AI generates a structured talent map grounded in a 2,000+ company MAD landscape dataset
+4. Results are displayed as an interactive, tab-based map you can explore and export
 
 The AI is instructed to only suggest real, verifiable companies — and to back up every poachability signal with a specific reason, not just a guess.
 
 ---
 
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + Vite 5 + Tailwind CSS v4 |
+| Backend | Express.js (Node 20) |
+| AI | Claude Sonnet via Atlan LiteLLM proxy |
+| Company Memory | MAD landscape dataset (~2,000 ML/AI/Data companies) via Google Sheets |
+| Hosting | Railway |
+
+---
+
+## Local Development
+
+```bash
+# Clone the repo
+git clone https://github.com/Manubarki/SourcingCompass2.git
+cd SourcingCompass2
+
+# Install dependencies
+npm install
+
+# Set environment variable
+export LITELLM_API_KEY=your_key_here
+
+# Run dev server (frontend only, hot reload)
+npm run dev
+
+# In a separate terminal, run the Express server
+node server.js
+```
+
+The Vite dev server runs on `http://localhost:5173`. For API calls to work locally, the Express server must also be running on port `3000`.
+
+---
+
+## Deployment (Railway)
+
+The app is deployed on Railway using Nixpacks. Build and start commands are defined in `railway.toml`:
+
+```toml
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "node server.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+```
+
+**Required environment variable in Railway:**
+
+| Variable | Description |
+|---|---|
+| `LITELLM_API_KEY` | API key for the Atlan LiteLLM proxy |
+
+---
+
 ## What makes a good search?
 
-The more specific your inputs, the better your results. Here are some tips:
+The more specific your inputs, the better your results:
 
 - **Add specific skills** rather than leaving it blank — e.g. "Apache Iceberg, dbt, Spark" gives much better results than just "data engineering"
 - **Use the Exclusions field** to skip companies you've already sourced from or that are off-limits
 - **Try different seniority levels** — a Staff search and a Senior search will return different company mixes
 - **Add preferred industries** if your hiring manager has a preference — e.g. "Fintech, Data Infrastructure"
-
----
-
-## Who built this?
-
-Built by **Manu Barki** on the People team at Atlan. This is an internal tool designed to make sourcing faster and smarter for the recruiting team.
+- **Paste the full JD** for the most accurate results — the parser extracts skills, seniority, and context automatically
 
 ---
 
 ## Limitations
 
-- The AI's knowledge has a cutoff date, so very recent company news (last few months) may not always be reflected
-- Occasionally the AI may suggest a company that's slightly off — always do a quick sanity check before sourcing
-- The tool works best for technical roles but can be used for any role
+- The AI's knowledge has a cutoff date, so very recent company news may not always be reflected
+- AI-generated results should be verified before sourcing — always do a quick sanity check
+- The tool works best for technical roles but can be used for any function
+- Poachability signals are inferred patterns, not confirmed facts — use them to tailor your angle, not as gospel
+
+---
+
+## Who built this?
+
+Built by **Manu Barki** on the People team at Atlan. Part of a broader suite of AI-powered recruiting tools built to make the Atlan talent team faster and smarter.
+
+Other tools in the suite: X-Ray Sourcing Agent · LinkedIn Profile Builder · ReviewRadar · LinkedIn Screening Assistant
 
 ---
 
 ## Feedback
 
-Try it, break it, and share your thoughts! The more feedback we get, the better it gets. Drop a message to Manu on Slack.
+Try it, break it, share your thoughts. Drop a message to Manu on Slack.
