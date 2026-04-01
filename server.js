@@ -122,6 +122,9 @@ app.post("/api/source", async (req, res) => {
   // Pick top 8 companies by score (pre-ranked from frontend)
   const targets = companies.slice(0, 8);
 
+  // Normalised target names for strict company matching later
+  const normalisedTargets = targets.map(t => t.toLowerCase().replace(/[^a-z0-9]/g, ""));
+
   // Build 2 X-ray queries per company, both including must-have skills:
   // Query 1: role + top skill (highest signal)
   // Query 2: role + second skill or seniority (broader net)
@@ -191,7 +194,19 @@ app.post("/api/source", async (req, res) => {
     return { name, currentTitle, currentCompany: currentCompany || sourceCompany, linkedinUrl: url, email, snippet, score };
   }
 
-  // Deduplicate by LinkedIn URL, rank by relevance score
+  // Strict target company filter — candidate must be from one of the 8 targets
+  function isFromTargetCompany(candidate) {
+    const companyNorm = (candidate.currentCompany || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const snippetNorm = (candidate.snippet || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const urlNorm = candidate.linkedinUrl.toLowerCase();
+    return normalisedTargets.some(t =>
+      (companyNorm && (companyNorm.includes(t) || t.includes(companyNorm))) ||
+      snippetNorm.includes(t) ||
+      urlNorm.includes(t)
+    );
+  }
+
+  // Deduplicate by LinkedIn URL, filter to target companies only, rank by relevance
   const seen = new Set();
   const candidates = rawResults
     .map(parseCandidate)
@@ -199,7 +214,7 @@ app.post("/api/source", async (req, res) => {
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      return c.name && c.name !== "Unknown";
+      return c.name && c.name !== "Unknown" && isFromTargetCompany(c);
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
