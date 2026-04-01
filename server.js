@@ -78,13 +78,13 @@ app.post("/api/generate", async (req, res) => {
 
     const finalPrompt = prompt + companyList;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
-        "x-api-key": process.env.LITELLM_API_KEY,
-      },
+    const response = await fetch("https://llmproxy.atlan.dev/v1/messages", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": process.env.LITELLM_API_KEY,
+  },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         messages: [{ role: "user", content: finalPrompt }],
