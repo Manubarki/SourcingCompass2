@@ -87,23 +87,21 @@ async function callLLM(prompt, maxTokens = 6000) {
   return data.content?.map(b => b.text || "").join("").trim() || "";
 }
 
-// ─── Location config — hardcoded to match frontend dropdown exactly ───────────
+// ─── Location config ─────────────────────────────────────────────────────────
+// site: LinkedIn uses country subdomains for non-US locations
+// gl:   Serper country code for Google search localisation
 const LOCATION_CONFIG = {
-  "United States":  { gl: "us", queryTerm: "" },
-  "Canada":         { gl: "ca", queryTerm: "Canada" },
-  "India":          { gl: "in", queryTerm: "India" },
-  "United Kingdom": { gl: "gb", queryTerm: "United Kingdom" },
-  "Europe":         { gl: "de", queryTerm: "" },
-  "Australia":      { gl: "au", queryTerm: "Australia" },
-  "Singapore":      { gl: "sg", queryTerm: "Singapore" },
+  "United States":  { site: "linkedin.com/in",    gl: "us" },
+  "Canada":         { site: "ca.linkedin.com/in",  gl: "ca" },
+  "India":          { site: "in.linkedin.com/in",  gl: "in" },
+  "United Kingdom": { site: "uk.linkedin.com/in",  gl: "gb" },
+  "Europe":         { site: "linkedin.com/in",     gl: "de" },
+  "Australia":      { site: "au.linkedin.com/in",  gl: "au" },
+  "Singapore":      { site: "sg.linkedin.com/in",  gl: "sg" },
 };
 
-function locationToGl(location) {
-  return LOCATION_CONFIG[location]?.gl || "us";
-}
-
-function locationToQueryTerm(location) {
-  return LOCATION_CONFIG[location]?.queryTerm || "";
+function getLocationConfig(location) {
+  return LOCATION_CONFIG[location] || { site: "linkedin.com/in", gl: "us" };
 }
 
 // ─── /api/generate ────────────────────────────────────────────────────────────
@@ -135,9 +133,8 @@ app.post("/api/source", async (req, res) => {
   const targets = companies.slice(0, 8);
   const normTargets = targets.map(t => t.toLowerCase().replace(/[^a-z0-9]/g, ""));
 
-  // Resolve location to Serper gl code + optional city term for query
-  const gl = locationToGl(location);
-  const locationTerm = locationToQueryTerm(location);
+  // Resolve location → LinkedIn subdomain + Serper gl code
+  const { site, gl } = getLocationConfig(location);
 
   // Seniority — must appear in title
   const SENIORITY_MAP = {
@@ -161,17 +158,14 @@ app.post("/api/source", async (req, res) => {
   const topSkill    = skills?.[0] || "";
   const secondSkill = skills?.[1] || "";
 
-  // Build queries — include location city term when available
-  const locSuffix = locationTerm ? ` "${locationTerm}"` : "";
+  // Build X-ray queries — each skill is a separate quoted AND term
+  // site: uses the correct LinkedIn country subdomain (au.linkedin.com/in for Australia etc.)
   const queries = targets.flatMap(company => {
-    // Q1: seniority + role core + top skill + location
-    const q1 = topSkill
-      ? `site:linkedin.com/in "${company}" "${seniority} ${roleCore}" "${topSkill}"${locSuffix}`
-      : `site:linkedin.com/in "${company}" "${seniority} ${roleCore}"${locSuffix}`;
-    // Q2: seniority + role core + second skill (or just role) + location
-    const q2 = secondSkill
-      ? `site:linkedin.com/in "${company}" "${seniority} ${roleCore}" "${secondSkill}"${locSuffix}`
-      : `site:linkedin.com/in "${company}" "${seniority}" "${roleCore}"${locSuffix}`;
+    const base = `site:${site} "${company}" "${seniority} ${roleCore}"`;
+    // Q1: base + top skill (mandatory keyword as separate AND term)
+    const q1 = topSkill ? `${base} "${topSkill}"` : base;
+    // Q2: base + second skill (or repeat top skill for more results)
+    const q2 = secondSkill ? `${base} "${secondSkill}"` : (topSkill ? `${base} "${topSkill}"` : base);
     return [q1, q2];
   });
 
