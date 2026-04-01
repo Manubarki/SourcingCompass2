@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 
 const GRID_SIZE = 40;
 
-const DOC_CONTEXT = "SourcingCompass is a talent intelligence tool built by Manu Barki at Atlan. It helps recruiters find where talent lives by generating a map of Target Companies, Adjacent Talent Pools, Wildcard Bets, and Target Titles for any role. It uses Claude Sonnet via Anthropic API, hosted on Vercel, built with React + Vite + Tailwind. The company memory is grounded in a MAD landscape dataset of 2000+ ML/AI/Data ecosystem companies. Key features: tag-based skill input (press comma or Enter), JD parser (paste JD to auto-fill fields), CSV export, poachability signals ([Signal] = inferred pattern, [Confirmed] = reported fact), talent density, relevance scores, hover tooltip showing why a company is relevant. Four result tabs: Target Companies (with scores), Adjacent Pools (transferable skills), Wildcard Bets (unconventional tech companies only), Target Titles (exact LinkedIn search terms with confidence scores). No outreach templates feature. Location filter ensures companies have engineering presence in the specified location. AI model: Claude Sonnet (claude-sonnet-4-20250514). The tool does NOT store any candidate data. API key is secure on server. The tool is intentionally stateless — every search is fresh. Poachability signals should not be used verbatim in outreach — use them to tailor your angle. Adjacent = one step removed from obvious. Wildcard = two or three steps removed, always a tech company. Target Titles help cast a wider LinkedIn net since same role has different titles at different companies.";
+const DOC_CONTEXT = "SourcingCompass is a talent intelligence tool built by Manu Barki at Atlan. It helps recruiters find where talent lives by generating a map of Target Companies, Adjacent Talent Pools, Wildcard Bets, and Target Titles for any role. It uses Claude Sonnet via Anthropic API, hosted on Railway, built with React + Vite + Tailwind. The company memory is grounded in a MAD landscape dataset of 2000+ ML/AI/Data ecosystem companies. Key features: tag-based skill input (press comma or Enter), JD parser (paste JD to auto-fill fields), CSV export, poachability signals ([Signal] = inferred pattern, [Confirmed] = reported fact), talent density, relevance scores, hover tooltip showing why a company is relevant. Four result tabs: Target Companies (with scores), Adjacent Pools (transferable skills), Wildcard Bets (unconventional tech companies only), Target Titles (exact LinkedIn search terms with confidence scores), and Candidates (live sourced LinkedIn profiles via Google X-ray). No outreach templates feature. Location filter ensures companies have engineering presence in the specified location. AI model: Claude Sonnet (claude-sonnet-4-20250514). The tool does NOT store any candidate data. API key is secure on server. The tool is intentionally stateless — every search is fresh. Poachability signals should not be used verbatim in outreach — use them to tailor your angle. Adjacent = one step removed from obvious. Wildcard = two or three steps removed, always a tech company. Target Titles help cast a wider LinkedIn net since same role has different titles at different companies. Candidates tab = live Google X-ray sourcing using Serper.dev, showing up to 30 LinkedIn profiles from target companies.";
 
 function BlueprintGrid() {
   return (
@@ -169,14 +169,215 @@ function Section({ cat, nodes }) {
   );
 }
 
+// ─── Candidate Card ────────────────────────────────────────────────────────────
+function CandidateCard({ candidate, index }) {
+  const initials = candidate.name
+    .split(" ").slice(0, 2).map(w => w[0] || "").join("").toUpperCase() || "?";
+
+  const colors = ["#38bdf8","#a78bfa","#34d399","#fb923c","#f472b6","#facc15"];
+  const color = colors[index % colors.length];
+
+  return (
+    <div className="rounded border border-slate-700 bg-slate-800/80 p-3 hover:border-slate-500 transition-all duration-200 group">
+      <div className="flex items-start gap-3">
+        {/* Avatar */}
+        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold font-mono"
+          style={{background: color + "22", border: "1px solid " + color + "66", color}}>
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-200 truncate">{candidate.name}</div>
+              {candidate.currentTitle && (
+                <div className="text-[10px] text-slate-400 truncate mt-0.5">{candidate.currentTitle}</div>
+              )}
+              {candidate.currentCompany && (
+                <div className="text-[10px] font-mono mt-0.5" style={{color}}>{candidate.currentCompany}</div>
+              )}
+            </div>
+            <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer"
+              className="flex-shrink-0 px-2 py-1 rounded text-[9px] font-bold tracking-widest uppercase border border-sky-700 text-sky-400 hover:bg-sky-900/40 transition-all">
+              LI →
+            </a>
+          </div>
+          {candidate.email && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className="text-[9px] text-emerald-600 tracking-widest uppercase">Email</span>
+              <span className="text-[10px] text-emerald-400 font-mono">{candidate.email}</span>
+            </div>
+          )}
+          {candidate.snippet && (
+            <div className="mt-2 text-[10px] text-slate-600 leading-relaxed line-clamp-2 group-hover:text-slate-500 transition-colors">
+              {candidate.snippet}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Candidates Tab ────────────────────────────────────────────────────────────
+function CandidatesTab({ mapData, form }) {
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [sourced, setSourced] = useState(false);
+
+  // Flatten all companies from all categories, ranked by confidence if available
+  const allCompanies = [
+    ...(mapData.companies || []).map(c => ({ name: c.label, score: (c.confidence || 0) + (c.poachability || 0) })),
+    ...(mapData.adjacent  || []).map(c => ({ name: c.label, score: 50 })),
+    ...(mapData.wildcards || []).map(c => ({ name: c.label, score: 40 })),
+  ].sort((a, b) => b.score - a.score);
+
+  const targetNames = allCompanies.map(c => c.name);
+
+  async function source() {
+    setLoading(true); setError(""); setCandidates([]);
+    try {
+      const res = await fetch("/api/source", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companies: targetNames,
+          role: form.role,
+          skills: form.skills,
+          seniority: form.seniority,
+          location: form.location,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Source failed"); setLoading(false); return; }
+      setCandidates(data.candidates || []);
+      setSourced(true);
+    } catch (e) {
+      setError("Network error: " + e.message);
+    }
+    setLoading(false);
+  }
+
+  function exportCSV() {
+    const rows = [["Name","Current Title","Current Company","LinkedIn URL","Email","Snippet"]];
+    candidates.forEach(c => rows.push([c.name, c.currentTitle, c.currentCompany, c.linkedinUrl, c.email || "", c.snippet || ""]));
+    const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "Candidates_" + form.role.replace(/\s+/g,"_") + ".csv";
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-5">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-2 h-2 rounded-full" style={{background:"#e879f9",boxShadow:"0 0 6px #e879f9"}}/>
+          <span className="text-xs font-bold tracking-[0.2em] uppercase text-fuchsia-300">Live Candidates</span>
+          <div className="flex-1 border-t border-dashed border-fuchsia-900/60"/>
+          {sourced && <span className="text-[10px] font-mono text-slate-500">{candidates.length} found</span>}
+        </div>
+        <div className="text-[10px] text-slate-600 ml-4">
+          Google X-ray sourcing across top {Math.min(targetNames.length, 8)} target companies
+        </div>
+      </div>
+
+      {/* Target companies preview */}
+      <div className="mb-4 p-3 rounded border border-slate-700/50 bg-slate-800/30">
+        <div className="text-[9px] text-slate-500 tracking-widest uppercase mb-2">Searching across</div>
+        <div className="flex flex-wrap gap-1">
+          {targetNames.slice(0, 8).map((name, i) => (
+            <span key={i} className="text-[10px] px-2 py-0.5 rounded font-mono bg-slate-700/50 border border-slate-600 text-slate-400">
+              {name}
+            </span>
+          ))}
+          {targetNames.length > 8 && (
+            <span className="text-[10px] px-2 py-0.5 rounded font-mono text-slate-600">+{targetNames.length - 8} more</span>
+          )}
+        </div>
+      </div>
+
+      {/* Credit estimate */}
+      <div className="mb-4 text-[9px] text-slate-600 bg-slate-800/30 border border-slate-700/40 rounded px-3 py-2">
+        This search uses ~{Math.min(targetNames.length, 8) * 2} Serper credits (of 2,500/mo free tier)
+      </div>
+
+      {error && <div className="mb-4 text-[11px] text-red-400 bg-red-900/20 border border-red-800 rounded px-3 py-2">{error}</div>}
+
+      {/* Source button */}
+      {!sourced && !loading && (
+        <button type="button" onClick={source}
+          className="w-full py-2.5 rounded text-xs font-bold tracking-widest uppercase text-slate-900 transition-all"
+          style={{background:"#e879f9",boxShadow:"0 0 16px #e879f955"}}>
+          Source Candidates →
+        </button>
+      )}
+
+      {/* Loading state */}
+      {loading && (
+        <div className="flex flex-col items-center gap-4 py-12">
+          <div className="w-8 h-8 border-2 border-fuchsia-400 border-t-transparent rounded-full animate-spin"/>
+          <div className="text-center">
+            <div className="text-[10px] text-slate-500 tracking-widest uppercase">X-raying LinkedIn</div>
+            <div className="text-[9px] text-slate-700 mt-1">Firing {Math.min(targetNames.length, 8) * 2} queries across target companies...</div>
+          </div>
+        </div>
+      )}
+
+      {/* Results */}
+      {sourced && !loading && (
+        <>
+          {candidates.length === 0 ? (
+            <div className="text-center py-10">
+              <div className="text-slate-600 text-2xl mb-3">∅</div>
+              <div className="text-slate-500 text-xs tracking-widest uppercase">No profiles found</div>
+              <div className="text-slate-700 text-[10px] mt-2">Try broadening your skills or changing the role title</div>
+              <button type="button" onClick={source}
+                className="mt-4 px-4 py-2 rounded text-xs font-bold tracking-widest uppercase border border-fuchsia-700 text-fuchsia-400 hover:bg-fuchsia-900/20">
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[10px] text-slate-500">{candidates.length} profiles · ranked by relevance</div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={exportCSV}
+                    className="px-3 py-1.5 rounded text-[10px] font-bold tracking-widest uppercase bg-emerald-600 hover:bg-emerald-500 text-white">
+                    CSV
+                  </button>
+                  <button type="button" onClick={source}
+                    className="px-3 py-1.5 rounded text-[10px] font-bold tracking-widest uppercase border border-fuchsia-700 text-fuchsia-400 hover:bg-fuchsia-900/20">
+                    Re-source
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {candidates.map((c, i) => <CandidateCard key={c.linkedinUrl} candidate={c} index={i}/>)}
+              </div>
+              <div className="mt-4 text-[9px] text-slate-700 text-center">
+                Profiles sourced via Google X-ray · Always verify before outreach
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
   { id:"companies", label:"Target Companies", dot:"#38bdf8" },
   { id:"adjacent",  label:"Adjacent Pools",   dot:"#a78bfa" },
   { id:"wildcards", label:"Wildcard Bets",     dot:"#fb923c" },
   { id:"titles",    label:"Target Titles",     dot:"#34d399" },
+  { id:"candidates",label:"Candidates",        dot:"#e879f9" },
 ];
 
-function ResultTabs({ mapData }) {
+function ResultTabs({ mapData, form }) {
   const [active, setActive] = useState("companies");
   const nodes = { companies:mapData.companies, adjacent:mapData.adjacent, wildcards:mapData.wildcards, titles:mapData.titles };
   return (
@@ -189,10 +390,16 @@ function ResultTabs({ mapData }) {
             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{background:active===t.id?t.dot:"#475569",boxShadow:active===t.id?"0 0 5px "+t.dot:"none"}}/>
             {t.label}
+            {t.id === "candidates" && (
+              <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-fuchsia-900/60 border border-fuchsia-800 text-fuchsia-400">NEW</span>
+            )}
           </button>
         ))}
       </div>
-      <Section cat={active} nodes={nodes[active]}/>
+      {active === "candidates"
+        ? <CandidatesTab mapData={mapData} form={form}/>
+        : <Section cat={active} nodes={nodes[active]}/>
+      }
     </div>
   );
 }
@@ -208,7 +415,7 @@ function LoadingScreen() {
       <div className="w-8 h-8 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"/>
       <div className="space-y-2 text-center">
         <div className="text-[9px] text-slate-600 tracking-widest uppercase mb-3">Finding</div>
-        {TABS.map((t, i) => (
+        {TABS.filter(t => t.id !== "candidates").map((t, i) => (
           <div key={t.id} className={"flex items-center gap-2 transition-all duration-300 " + (i===step?"opacity-100":"opacity-20")}>
             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background:t.dot,boxShadow:i===step?"0 0 6px "+t.dot:"none"}}/>
             <span className="text-xs tracking-widest uppercase font-mono" style={{color:i===step?t.dot:"#475569"}}>{t.label}</span>
@@ -350,7 +557,7 @@ function Chatbot() {
           </div>
           {messages.length === 1 && (
             <div className="px-3 pb-2 flex flex-wrap gap-1">
-              {["What is poachability?","How do I use the JD parser?","What's a wildcard bet?"].map(q => (
+              {["What is poachability?","How do I use the JD parser?","What's a wildcard bet?","How does Candidates tab work?"].map(q => (
                 <button key={q} type="button" onClick={() => setInput(q)}
                   className="text-[9px] px-2 py-1 rounded border border-slate-700 text-slate-500 hover:text-sky-400 hover:border-sky-700 transition-all">
                   {q}
@@ -433,7 +640,6 @@ export default function TalentMap() {
       const data = await res.json();
       const raw = data.content?.map(b => b.text||"").join("").trim();
       let clean = raw.replace(/```json|```/g,"").trim();
-      // Find the last complete JSON object by trimming at the last closing brace
       const lastBrace = clean.lastIndexOf("}");
       if (lastBrace !== -1) clean = clean.slice(0, lastBrace + 1);
       const parsed = JSON.parse(clean);
@@ -513,20 +719,20 @@ export default function TalentMap() {
             </div>
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400 tracking-widest uppercase mb-1">Must-Have Skills</label>
+            <label className="block text-[10px] text-slate-400 tracking-widests uppercase mb-1">Must-Have Skills</label>
             <TagInput placeholder="Type skill, press , or Enter" tags={form.skills} onChange={v => set("skills",v)}/>
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400 tracking-widest uppercase mb-1">Preferred Industries</label>
+            <label className="block text-[10px] text-slate-400 tracking-widests uppercase mb-1">Preferred Industries</label>
             <TagInput placeholder="e.g. Fintech, Data" tags={form.industries} onChange={v => set("industries",v)}/>
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400 tracking-widest uppercase mb-1">Exclusions</label>
+            <label className="block text-[10px] text-slate-400 tracking-widests uppercase mb-1">Exclusions</label>
             <TagInput placeholder="Companies or industries to skip" tags={form.exclusions} onChange={v => set("exclusions",v)}/>
           </div>
           <div>
             <button type="button" onClick={() => setShowJD(v => !v)}
-              className="text-[10px] text-sky-500 hover:text-sky-300 tracking-widest uppercase">
+              className="text-[10px] text-sky-500 hover:text-sky-300 tracking-widests uppercase">
               {showJD ? "Hide" : "Paste"} Job Description
             </button>
             {showJD && (
@@ -535,7 +741,7 @@ export default function TalentMap() {
                   className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500 resize-none"
                   placeholder="Paste your JD here..."/>
                 <button type="button" onClick={parseJD} disabled={parsing}
-                  className="w-full py-2 rounded text-xs font-bold tracking-widest uppercase bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-40">
+                  className="w-full py-2 rounded text-xs font-bold tracking-widests uppercase bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-40">
                   {parsing ? "Parsing..." : "Parse JD — Auto-fill Fields"}
                 </button>
               </div>
@@ -546,7 +752,7 @@ export default function TalentMap() {
           </div>
           {error && <div className="text-[11px] text-red-400 bg-red-900/20 border border-red-800 rounded px-3 py-2">{error}</div>}
           <button type="button" onClick={generate} disabled={loading}
-            className="w-full py-2.5 rounded text-xs font-bold tracking-widest uppercase bg-sky-500 hover:bg-sky-400 text-slate-900 disabled:opacity-50"
+            className="w-full py-2.5 rounded text-xs font-bold tracking-widests uppercase bg-sky-500 hover:bg-sky-400 text-slate-900 disabled:opacity-50"
             style={{boxShadow:loading?"none":"0 0 12px #38bdf855"}}>
             {loading ? "Generating..." : "Generate Map"}
           </button>
@@ -559,6 +765,10 @@ export default function TalentMap() {
               <span className="text-[10px] text-slate-500">{s.label}</span>
             </div>
           ))}
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{background:"#e879f9"}}/>
+            <span className="text-[10px] text-slate-500">Candidates (X-ray sourced)</span>
+          </div>
           <div className="flex items-center gap-2 pt-1">
             <div className="w-4 border-t border-dashed border-sky-400"/>
             <span className="text-[10px] text-slate-500">Hover companies for context</span>
@@ -570,7 +780,7 @@ export default function TalentMap() {
         {!generated && !loading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
             <div className="text-slate-700 text-4xl mb-4">+</div>
-            <div className="text-slate-500 text-xs tracking-widest uppercase">Configure inputs and hit Generate Map</div>
+            <div className="text-slate-500 text-xs tracking-widests uppercase">Configure inputs and hit Generate Map</div>
             <div className="text-slate-700 text-[10px] mt-2">AI-powered talent intelligence will populate here</div>
           </div>
         )}
@@ -579,16 +789,16 @@ export default function TalentMap() {
           <div className="relative z-10 p-8">
             <div className="mb-6 pb-4 border-b border-slate-700/50 flex items-start justify-between gap-4">
               <div>
-                <div className="text-slate-300 text-sm font-bold tracking-widest uppercase">{form.role} · {form.seniority}</div>
+                <div className="text-slate-300 text-sm font-bold tracking-widests uppercase">{form.role} · {form.seniority}</div>
                 <div className="text-slate-500 text-xs mt-1">{[form.company,form.location].filter(Boolean).join(" · ")}</div>
                 <div className="text-[10px] text-slate-600 mt-2">{allNodes.length} nodes mapped</div>
               </div>
               <button type="button" onClick={exportCSV}
-                className="flex-shrink-0 py-2 px-3 rounded text-xs font-bold tracking-widest uppercase bg-emerald-600 hover:bg-emerald-500 text-white">
+                className="flex-shrink-0 py-2 px-3 rounded text-xs font-bold tracking-widests uppercase bg-emerald-600 hover:bg-emerald-500 text-white">
                 CSV
               </button>
             </div>
-            <ResultTabs mapData={mapData}/>
+            <ResultTabs mapData={mapData} form={form}/>
           </div>
         )}
       </div>
