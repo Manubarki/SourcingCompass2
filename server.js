@@ -4,10 +4,18 @@ import { dirname, join } from "path";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 app.use(express.json());
-app.use(express.static(join(__dirname, "dist")));
+
+// Serve static files from dist
+app.use(express.static(join(__dirname, "dist"), {
+  setHeaders: (res, path) => {
+    if (path.endsWith(".js")) res.setHeader("Content-Type", "application/javascript");
+    if (path.endsWith(".css")) res.setHeader("Content-Type", "text/css");
+  }
+}));
 
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/1IlRq1Qab3ywgA1-r215HIZlh3e3m8Q6RT6kKvMePP4U/export?format=csv&gid=0";
 let MEMORY = null;
