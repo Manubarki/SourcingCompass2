@@ -79,12 +79,12 @@ app.post("/api/generate", async (req, res) => {
     const finalPrompt = prompt + companyList;
 
     const response = await fetch("https://llmproxy.atlan.dev/v1/messages", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "anthropic-version": "2023-06-01",
-    "x-api-key": process.env.LITELLM_API_KEY,
-  },
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": process.env.LITELLM_API_KEY,
+      },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         messages: [{ role: "user", content: finalPrompt }],
@@ -95,7 +95,7 @@ app.post("/api/generate", async (req, res) => {
     const rawText = await response.text();
     let data;
     try { data = JSON.parse(rawText); }
-    catch { return res.status(500).json({ error: "Non-JSON from Anthropic: " + rawText.slice(0, 200) }); }
+    catch { return res.status(500).json({ error: "Non-JSON from proxy: " + rawText.slice(0, 200) }); }
 
     if (!response.ok) return res.status(500).json({ error: data?.error?.message || JSON.stringify(data) });
 
