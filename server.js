@@ -87,6 +87,43 @@ async function callLLM(prompt, maxTokens = 6000) {
   return data.content?.map(b => b.text || "").join("").trim() || "";
 }
 
+// ─── Location → Serper country code ──────────────────────────────────────────
+// Maps common location inputs to Serper gl (Google country) codes
+// Falls back to "us" if unknown
+function locationToGl(location) {
+  if (!location) return "us";
+  const l = location.toLowerCase();
+  if (l.includes("australia") || l.includes("sydney") || l.includes("melbourne") || l.includes("brisbane")) return "au";
+  if (l.includes("uk") || l.includes("united kingdom") || l.includes("london") || l.includes("england")) return "gb";
+  if (l.includes("canada") || l.includes("toronto") || l.includes("vancouver")) return "ca";
+  if (l.includes("india") || l.includes("bangalore") || l.includes("bengaluru") || l.includes("mumbai") || l.includes("hyderabad") || l.includes("delhi")) return "in";
+  if (l.includes("germany") || l.includes("berlin") || l.includes("munich")) return "de";
+  if (l.includes("singapore")) return "sg";
+  if (l.includes("netherlands") || l.includes("amsterdam")) return "nl";
+  if (l.includes("france") || l.includes("paris")) return "fr";
+  if (l.includes("japan") || l.includes("tokyo")) return "jp";
+  if (l.includes("brazil") || l.includes("são paulo") || l.includes("sao paulo")) return "br";
+  if (l.includes("israel") || l.includes("tel aviv")) return "il";
+  if (l.includes("uae") || l.includes("dubai")) return "ae";
+  // North America / USA catch-all
+  if (l.includes("north america") || l.includes("usa") || l.includes("united states") || l.includes("san francisco") || l.includes("new york") || l.includes("seattle")) return "us";
+  return "us";
+}
+
+// Extract a short city/region string to include in the query itself
+// e.g. "North America" → "" (too broad, skip), "Sydney" → "Sydney", "Bangalore" → "Bangalore"
+function locationToQueryTerm(location) {
+  if (!location) return "";
+  const l = location.toLowerCase();
+  // Broad regions — don't add to query, rely on gl code instead
+  if (l.includes("north america") || l.includes("united states") || l.includes("usa")) return "";
+  if (l.includes("europe") || l.includes("global") || l.includes("remote") || l.includes("worldwide")) return "";
+  // Specific cities — include in query for precision
+  const cities = ["sydney","melbourne","london","bangalore","bengaluru","mumbai","hyderabad","delhi","toronto","vancouver","singapore","berlin","amsterdam","paris","tokyo","dubai"];
+  const matched = cities.find(c => l.includes(c));
+  return matched ? matched.charAt(0).toUpperCase() + matched.slice(1) : "";
+}
+
 // ─── /api/generate ────────────────────────────────────────────────────────────
 app.post("/api/generate", async (req, res) => {
   try {
@@ -116,38 +153,43 @@ app.post("/api/source", async (req, res) => {
   const targets = companies.slice(0, 8);
   const normTargets = targets.map(t => t.toLowerCase().replace(/[^a-z0-9]/g, ""));
 
-  // Seniority terms — what words MUST appear in a matching title
+  // Resolve location to Serper gl code + optional city term for query
+  const gl = locationToGl(location);
+  const locationTerm = locationToQueryTerm(location);
+
+  // Seniority — must appear in title
   const SENIORITY_MAP = {
-    "junior":    ["junior", "associate", "entry level"],
-    "mid":       ["mid", "intermediate", "ii", "level 2"],
+    "junior":    ["junior", "associate", "entry"],
+    "mid":       ["mid", "intermediate", " ii", " 2"],
     "senior":    ["senior", "sr "],
     "staff":     ["staff"],
     "principal": ["principal", "distinguished"],
     "director":  ["director", "head of"],
-    "vp":        ["vp ", "vice president", "head of engineering"],
+    "vp":        ["vp ", "vice president"],
   };
-  const senKey = (seniority || "").toLowerCase();
+  const senKey   = (seniority || "").toLowerCase();
   const senTerms = SENIORITY_MAP[senKey] || [senKey];
 
-  // Core role noun — strip seniority prefix
+  // Role core (strip seniority prefix)
   const roleCore = role.toLowerCase()
     .replace(/^(junior|mid|senior|staff|principal|director|vp)\s+/i, "")
     .trim();
-
-  // Role keywords — at least one must appear in the title
-  // e.g. "staff engineer" → ["engineer"]
-  // e.g. "data engineer" → ["data", "engineer"]
   const roleCoreWords = roleCore.split(/\s+/).filter(w => w.length > 3);
 
   const topSkill    = skills?.[0] || "";
   const secondSkill = skills?.[1] || "";
 
-  // 2 queries per company — both lock in seniority + role core
+  // Build queries — include location city term when available
+  const locSuffix = locationTerm ? ` "${locationTerm}"` : "";
   const queries = targets.flatMap(company => {
-    const q1 = `site:linkedin.com/in "${company}" "${seniority} ${roleCore}"${topSkill ? ` "${topSkill}"` : ""}`;
+    // Q1: seniority + role core + top skill + location
+    const q1 = topSkill
+      ? `site:linkedin.com/in "${company}" "${seniority} ${roleCore}" "${topSkill}"${locSuffix}`
+      : `site:linkedin.com/in "${company}" "${seniority} ${roleCore}"${locSuffix}`;
+    // Q2: seniority + role core + second skill (or just role) + location
     const q2 = secondSkill
-      ? `site:linkedin.com/in "${company}" "${seniority} ${roleCore}" "${secondSkill}"`
-      : `site:linkedin.com/in "${company}" "${seniority}" "${roleCore}"`;
+      ? `site:linkedin.com/in "${company}" "${seniority} ${roleCore}" "${secondSkill}"${locSuffix}`
+      : `site:linkedin.com/in "${company}" "${seniority}" "${roleCore}"${locSuffix}`;
     return [q1, q2];
   });
 
@@ -158,7 +200,7 @@ app.post("/api/source", async (req, res) => {
         fetch("https://google.serper.dev/search", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-API-KEY": SERPER_KEY },
-          body: JSON.stringify({ q, num: 5, gl: "us" }),
+          body: JSON.stringify({ q, num: 5, gl }),  // ← dynamic country code
         }).then(r => r.json()).catch(() => ({ organic: [] }))
       )
     );
@@ -171,24 +213,22 @@ app.post("/api/source", async (req, res) => {
     const url = result.link || "";
     if (!url.includes("linkedin.com/in/")) return null;
 
-    const snippet = result.snippet || "";
-    const rawTitle = result.title || "";
+    const snippet  = result.snippet || "";
+    const rawTitle = result.title   || "";
 
-    // Name: everything before the first " - " or " | "
+    // Name: before first " - " or " | "
     const nameMatch = rawTitle.match(/^([^|\-]+?)(?:\s*[-|]|$)/);
     const name = nameMatch ? nameMatch[1].trim() : "Unknown";
 
-    // Title: strip name, strip "| LinkedIn", strip "@Company" suffixes
-    // Google titles look like: "Name - Title at Company | LinkedIn"
-    //                      or: "Name - Title @Company | LinkedIn"
+    // Title: strip name prefix, then strip "at/@ Company" and "| LinkedIn" suffixes
     const afterName = rawTitle.replace(/^[^-]+-\s*/, "");
     const cleanedTitle = afterName
-      .replace(/\s*\|.*$/, "")           // remove "| LinkedIn" suffix
-      .replace(/\s*[@＠]\s*\S+.*$/, "")  // remove "@Company" suffix
-      .replace(/\s+at\s+.+$/i, "")       // remove "at Company" suffix
+      .replace(/\s*\|.*$/, "")
+      .replace(/\s*[@＠]\s*\S+.*$/, "")
+      .replace(/\s+at\s+.+$/i, "")
       .trim();
 
-    // Company: try "at Company" pattern, then "@Company"
+    // Company: "at Company" pattern
     const atMatch = rawTitle.match(/\s+(?:at|@)\s+([^|]+?)(?:\s*\||$)/i);
     const currentCompany = atMatch ? atMatch[1].trim() : "";
 
@@ -201,45 +241,47 @@ app.post("/api/source", async (req, res) => {
       rawTitle.toLowerCase().includes(c.toLowerCase())
     ) || currentCompany || "";
 
-    const kw = [role, roleCore, ...(skills || []), seniority || ""].map(k => k.toLowerCase());
+    // Relevance score — skills weighted higher
+    const kw = [role, roleCore, seniority || "", ...(skills || []).map(s => s.toLowerCase())];
     const fullText = [name, cleanedTitle, currentCompany, snippet].join(" ").toLowerCase();
-    const score = kw.reduce((n, k) => n + (k && fullText.includes(k) ? 1 : 0), 0);
+    // Skills get 2 points each (higher weight), other keywords get 1
+    const score = kw.reduce((n, k, i) => {
+      if (!k) return n;
+      const hit = fullText.includes(k.toLowerCase());
+      return n + (hit ? (i >= 2 + 1 ? 2 : 1) : 0); // skills start at index 3
+    }, 0);
 
-    return {
-      name,
-      currentTitle: cleanedTitle,
-      currentCompany: currentCompany || sourceCompany,
-      linkedinUrl: url,
-      email,
-      snippet,
-      score,
-    };
+    return { name, currentTitle: cleanedTitle, currentCompany: currentCompany || sourceCompany, linkedinUrl: url, email, snippet, score };
   }
 
-  // STRICT title filter:
-  // The candidate's title OR snippet must contain:
-  //   (a) at least one seniority term, AND
-  //   (b) at least one role core word
-  // If title is empty, fall back to snippet check only
+  // STRICT: title must have seniority AND role core word
   function hasTitleMatch(c) {
     const t = (c.currentTitle || "").toLowerCase();
-    const s = (c.snippet || "").toLowerCase();
-    const checkIn = t || s; // prefer title, fall back to snippet
-
-    const hasSen  = senTerms.some(term => checkIn.includes(term));
-    const hasRole = roleCoreWords.length === 0 || roleCoreWords.some(w => checkIn.includes(w));
+    const s = (c.snippet    || "").toLowerCase();
+    // Prefer title check; fall back to snippet only if title is empty
+    const check = t.length > 2 ? t : s;
+    const hasSen  = senTerms.some(term => check.includes(term));
+    const hasRole = roleCoreWords.length === 0 || roleCoreWords.some(w => check.includes(w));
     return hasSen && hasRole;
   }
 
+  // STRICT: must match a target company
   function isFromTargetCompany(c) {
     const compNorm = (c.currentCompany || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const snipNorm = (c.snippet || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const snipNorm = (c.snippet        || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const urlNorm  = c.linkedinUrl.toLowerCase();
     return normTargets.some(t =>
       (compNorm && (compNorm.includes(t) || t.includes(compNorm))) ||
       snipNorm.includes(t) ||
       urlNorm.includes(t)
     );
+  }
+
+  // MUST-HAVE skills check — at least one skill must appear in snippet or title
+  function hasSkillMatch(c) {
+    if (!skills || skills.length === 0) return true;
+    const check = [(c.currentTitle || ""), (c.snippet || "")].join(" ").toLowerCase();
+    return skills.some(sk => check.includes(sk.toLowerCase()));
   }
 
   const seen = new Set();
@@ -253,7 +295,8 @@ app.post("/api/source", async (req, res) => {
         c.name &&
         c.name !== "Unknown" &&
         isFromTargetCompany(c) &&
-        hasTitleMatch(c)
+        hasTitleMatch(c) &&
+        hasSkillMatch(c)       // ← new: must show at least one must-have skill
       );
     })
     .sort((a, b) => b.score - a.score)
