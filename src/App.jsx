@@ -178,39 +178,66 @@ function CandidateCard({ candidate, index }) {
   const color = colors[index % colors.length];
 
   return (
-    <div className="rounded border border-slate-700 bg-slate-800/80 p-3 hover:border-slate-500 transition-all duration-200 group">
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold font-mono"
-          style={{background: color + "22", border: "1px solid " + color + "66", color}}>
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-200 truncate">{candidate.name}</div>
-              {candidate.currentTitle && (
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">{candidate.currentTitle}</div>
-              )}
-              {candidate.currentCompany && (
-                <div className="text-[10px] font-mono mt-0.5" style={{color}}>{candidate.currentCompany}</div>
-              )}
+    <div className="rounded-lg border border-slate-700/60 bg-slate-800/60 hover:bg-slate-800 hover:border-slate-600 transition-all duration-200 overflow-hidden group">
+      <div className="flex items-stretch">
+        {/* Color accent bar */}
+        <div className="w-1 flex-shrink-0 rounded-l-lg" style={{background: color}}/>
+
+        <div className="flex-1 p-4 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+
+            {/* Left: avatar + identity */}
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                style={{background: color + "18", border: "1.5px solid " + color + "55", color, fontFamily: "sans-serif"}}>
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white leading-tight" style={{fontFamily:"sans-serif"}}>{candidate.name}</div>
+                {candidate.currentTitle && (
+                  <div className="text-xs text-slate-300 mt-0.5 leading-snug" style={{fontFamily:"sans-serif"}}>{candidate.currentTitle}</div>
+                )}
+                {candidate.currentCompany && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background: color}}/>
+                    <span className="text-xs font-medium" style={{color, fontFamily:"sans-serif"}}>{candidate.currentCompany}</span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Right: LinkedIn button */}
             <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer"
-              className="flex-shrink-0 px-2 py-1 rounded text-[9px] font-bold tracking-widest uppercase border border-sky-700 text-sky-400 hover:bg-sky-900/40 transition-all">
-              LI →
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 hover:scale-105"
+              style={{
+                background: "linear-gradient(135deg, #0077b5, #0a66c2)",
+                color: "white",
+                fontFamily: "sans-serif",
+                boxShadow: "0 2px 8px #0a66c240",
+                textDecoration: "none",
+              }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+              </svg>
+              View Profile
             </a>
           </div>
+
+          {/* Email */}
           {candidate.email && (
-            <div className="mt-2 flex items-center gap-1.5">
-              <span className="text-[9px] text-emerald-600 tracking-widest uppercase">Email</span>
-              <span className="text-[10px] text-emerald-400 font-mono">{candidate.email}</span>
+            <div className="mt-3 flex items-center gap-2 px-2 py-1.5 rounded-md bg-emerald-900/20 border border-emerald-800/40">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+              <span className="text-xs text-emerald-400" style={{fontFamily:"sans-serif"}}>{candidate.email}</span>
             </div>
           )}
+
+          {/* Snippet */}
           {candidate.snippet && (
-            <div className="mt-2 text-[10px] text-slate-600 leading-relaxed line-clamp-2 group-hover:text-slate-500 transition-colors">
+            <p className="mt-2.5 text-xs text-slate-500 leading-relaxed line-clamp-2 group-hover:text-slate-400 transition-colors" style={{fontFamily:"sans-serif"}}>
               {candidate.snippet}
-            </div>
+            </p>
           )}
         </div>
       </div>
