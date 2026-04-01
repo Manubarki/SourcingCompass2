@@ -644,7 +644,7 @@ function buildPrompt(form) {
 const EMPTY = { companies:[], adjacent:[], wildcards:[], titles:[] };
 
 export default function TalentMap() {
-  const [form, setForm] = useState({ role:"", company:"", location:"", seniority:"Senior", skills:[], industries:[], exclusions:[] });
+  const [form, setForm] = useState({ role:"", company:"", location:"United States", seniority:"Senior", skills:[], industries:[], exclusions:[] });
   const [mapData, setMapData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -734,8 +734,18 @@ export default function TalentMap() {
           <div className="flex gap-2">
             <div className="flex-1">
               <label className="block text-[10px] text-slate-400 tracking-widest uppercase mb-1">Location</label>
-              <input className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500"
-                placeholder="e.g. North America" value={form.location} onChange={e => set("location",e.target.value)}/>
+              <select className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
+                value={form.location} onChange={e => set("location", e.target.value)}>
+                {[
+                  { label: "United States",   value: "United States"   },
+                  { label: "Canada",          value: "Canada"          },
+                  { label: "India",           value: "India"           },
+                  { label: "United Kingdom",  value: "United Kingdom"  },
+                  { label: "Europe",          value: "Europe"          },
+                  { label: "Australia",       value: "Australia"       },
+                  { label: "Singapore",       value: "Singapore"       },
+                ].map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
             </div>
             <div className="flex-1">
               <label className="block text-[10px] text-slate-400 tracking-widest uppercase mb-1">Seniority</label>
