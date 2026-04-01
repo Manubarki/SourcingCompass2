@@ -251,6 +251,7 @@ function CandidatesTab({ mapData, form }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sourced, setSourced] = useState(false);
+  const abortRef = useRef(null);
 
   // Flatten all companies from all categories, ranked by confidence if available
   const allCompanies = [
@@ -261,12 +262,20 @@ function CandidatesTab({ mapData, form }) {
 
   const targetNames = allCompanies.map(c => c.name);
 
+  function stop() {
+    if (abortRef.current) abortRef.current.abort();
+    setLoading(false);
+  }
+
   async function source() {
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
     setLoading(true); setError(""); setCandidates([]);
     try {
       const res = await fetch("/api/source", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: abortRef.current.signal,
         body: JSON.stringify({
           companies: targetNames,
           role: form.role,
@@ -280,7 +289,7 @@ function CandidatesTab({ mapData, form }) {
       setCandidates(data.candidates || []);
       setSourced(true);
     } catch (e) {
-      setError("Network error: " + e.message);
+      if (e.name !== "AbortError") setError("Network error: " + e.message);
     }
     setLoading(false);
   }
@@ -350,6 +359,11 @@ function CandidatesTab({ mapData, form }) {
             <div className="text-[10px] text-slate-500 tracking-widest uppercase">X-raying LinkedIn</div>
             <div className="text-[9px] text-slate-700 mt-1">Firing {Math.min(targetNames.length, 8) * 2} queries across target companies...</div>
           </div>
+          <button type="button" onClick={stop}
+            className="flex items-center gap-2 px-4 py-2 rounded border border-red-700 text-red-400 text-xs font-bold tracking-widest uppercase hover:bg-red-900/20 transition-all">
+            <div className="w-2 h-2 rounded-sm bg-red-500"/>
+            Stop Search
+          </button>
         </div>
       )}
 
@@ -652,6 +666,7 @@ export default function TalentMap() {
   const [generated, setGenerated] = useState(false);
   const [showJD, setShowJD] = useState(false);
   const jdRef = useRef(null);
+  const generateAbortRef = useRef(null);
   const set = (k, v) => setForm(f => ({...f, [k]:v}));
   const allNodes = mapData ? [...mapData.companies,...mapData.adjacent,...mapData.wildcards,...mapData.titles] : [];
 
@@ -676,12 +691,20 @@ export default function TalentMap() {
     setParsing(false);
   }
 
+  function stopGenerate() {
+    if (generateAbortRef.current) generateAbortRef.current.abort();
+    setLoading(false);
+  }
+
   async function generate() {
     if (!form.role.trim()) { setError("Role is required."); return; }
+    if (generateAbortRef.current) generateAbortRef.current.abort();
+    generateAbortRef.current = new AbortController();
     setError(""); setLoading(true); setMapData(null);
     try {
       const res = await fetch("/api/generate", {
         method:"POST", headers:{"Content-Type":"application/json"},
+        signal: generateAbortRef.current.signal,
         body: JSON.stringify({ messages:[{ role:"user", content:buildPrompt(form) }] })
       });
       const data = await res.json();
@@ -690,7 +713,9 @@ export default function TalentMap() {
       const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
       setMapData({...EMPTY,...parsed});
       setGenerated(true);
-    } catch(e) { setError("Error: " + e.message); }
+    } catch(e) {
+      if (e.name !== "AbortError") setError("Error: " + e.message);
+    }
     setLoading(false);
   }
 
@@ -788,11 +813,25 @@ export default function TalentMap() {
             AI-generated results. Verify companies before sourcing.
           </div>
           {error && <div className="text-[11px] text-red-400 bg-red-900/20 border border-red-800 rounded px-3 py-2">{error}</div>}
-          <button type="button" onClick={generate} disabled={loading}
-            className="w-full py-2.5 rounded text-xs font-bold tracking-widests uppercase bg-sky-500 hover:bg-sky-400 text-slate-900 disabled:opacity-50"
-            style={{boxShadow:loading?"none":"0 0 12px #38bdf855"}}>
-            {loading ? "Generating..." : "Generate Map"}
-          </button>
+          {!loading ? (
+            <button type="button" onClick={generate}
+              className="w-full py-2.5 rounded text-xs font-bold tracking-widests uppercase bg-sky-500 hover:bg-sky-400 text-slate-900"
+              style={{boxShadow:"0 0 12px #38bdf855"}}>
+              Generate Map
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <div className="flex-1 py-2.5 rounded text-xs font-bold tracking-widests uppercase bg-slate-700 text-slate-400 text-center cursor-not-allowed flex items-center justify-center gap-2">
+                <div className="w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"/>
+                Generating...
+              </div>
+              <button type="button" onClick={stopGenerate}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded text-xs font-bold tracking-widests uppercase border border-red-700 text-red-400 hover:bg-red-900/20 transition-all flex-shrink-0">
+                <div className="w-2 h-2 rounded-sm bg-red-500"/>
+                Stop
+              </button>
+            </div>
+          )}
         </div>
         <div className="px-5 py-4 border-t border-slate-700/50 space-y-2">
           <div className="text-[9px] text-slate-600 tracking-widests uppercase mb-2">Legend</div>
