@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
 // Serve static files from dist
 app.use(express.static(join(__dirname, "dist"), {
@@ -17,6 +17,7 @@ app.use(express.static(join(__dirname, "dist"), {
   }
 }));
 
+// ─── Company memory from Google Sheets ───────────────────────────────────────
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/1IlRq1Qab3ywgA1-r215HIZlh3e3m8Q6RT6kKvMePP4U/export?format=csv&gid=0";
 let MEMORY = null;
 
@@ -64,6 +65,30 @@ function getRelevant(companies, role, skills, industries) {
   return [...rel,...other].map(c=>[c.name,c.sub||c.cat,c.fund].filter(Boolean).join(" | ")).join("\n");
 }
 
+// ─── LiteLLM helper ──────────────────────────────────────────────────────────
+async function callLLM(prompt, maxTokens = 6000) {
+  const response = await fetch("https://llmproxy.atlan.dev/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01",
+      "x-api-key": process.env.LITELLM_API_KEY,
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: maxTokens,
+    }),
+  });
+  const rawText = await response.text();
+  let data;
+  try { data = JSON.parse(rawText); }
+  catch { throw new Error("Non-JSON from proxy: " + rawText.slice(0, 200)); }
+  if (!response.ok) throw new Error(data?.error?.message || JSON.stringify(data));
+  return data.content?.map(b => b.text || "").join("").trim() || "";
+}
+
+// ─── /api/generate — talent map ──────────────────────────────────────────────
 app.post("/api/generate", async (req, res) => {
   try {
     const prompt = req.body.messages?.[0]?.content || "";
@@ -76,36 +101,108 @@ app.post("/api/generate", async (req, res) => {
       ? "\n\nVERIFIED COMPANY LIST — only suggest companies from this list:\n" + getRelevant(companies, role, skills, industries)
       : "";
 
-    const finalPrompt = prompt + companyList;
-
-    const response = await fetch("https://llmproxy.atlan.dev/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
-        "x-api-key": process.env.LITELLM_API_KEY,
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        messages: [{ role: "user", content: finalPrompt }],
-        max_tokens: 6000,
-      }),
-    });
-
-    const rawText = await response.text();
-    let data;
-    try { data = JSON.parse(rawText); }
-    catch { return res.status(500).json({ error: "Non-JSON from proxy: " + rawText.slice(0, 200) }); }
-
-    if (!response.ok) return res.status(500).json({ error: data?.error?.message || JSON.stringify(data) });
-
-    const text = data.content?.map(b=>b.text||"").join("").trim() || "{}";
-    res.json({ content: [{ type:"text", text }] });
+    const text = await callLLM(prompt + companyList);
+    res.json({ content: [{ type: "text", text }] });
   } catch(err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// ─── /api/source — candidate sourcing via Serper X-ray ───────────────────────
+app.post("/api/source", async (req, res) => {
+  const { companies, role, skills, seniority, location } = req.body;
+
+  if (!companies?.length || !role) {
+    return res.status(400).json({ error: "companies and role are required" });
+  }
+
+  const SERPER_KEY = process.env.SERPER_API_KEY;
+  if (!SERPER_KEY) return res.status(500).json({ error: "SERPER_API_KEY not configured" });
+
+  // Pick top 8 companies by score (they arrive pre-ranked from the frontend)
+  const targets = companies.slice(0, 8);
+
+  // Build 2 X-ray queries per company:
+  // Query 1: role title + company
+  // Query 2: top skill + company (more likely to surface niche profiles)
+  const topSkill = skills?.[0] || "";
+  const queries = targets.flatMap(company => {
+    const base = `site:linkedin.com/in "${company}" "${role}"`;
+    const skill = topSkill ? `site:linkedin.com/in "${company}" "${topSkill}"` : null;
+    return skill ? [base, skill] : [base];
+  });
+
+  // Fire all queries in parallel (max 16 at once — well within Serper's rate limits)
+  let rawResults = [];
+  try {
+    const responses = await Promise.all(
+      queries.map(q =>
+        fetch("https://google.serper.dev/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-API-KEY": SERPER_KEY },
+          body: JSON.stringify({ q, num: 5, gl: "us" }),
+        }).then(r => r.json()).catch(() => ({ organic: [] }))
+      )
+    );
+    rawResults = responses.flatMap(r => r.organic || []);
+  } catch (err) {
+    return res.status(500).json({ error: "Serper search failed: " + err.message });
+  }
+
+  // Parse each Google snippet into a candidate object
+  function parseCandidate(result) {
+    const url = result.link || "";
+    if (!url.includes("linkedin.com/in/")) return null;
+
+    const snippet = result.snippet || "";
+    const title = result.title || "";
+
+    // Extract name from LinkedIn title format: "Name - Title at Company | LinkedIn"
+    const nameMatch = title.match(/^([^-|]+)/);
+    const name = nameMatch ? nameMatch[1].trim() : "Unknown";
+
+    // Extract role+company from title or snippet
+    const roleMatch = title.match(/- (.+?) (?:at|@) (.+?)(?:\s*\||$)/i)
+      || title.match(/- (.+?) \| /i);
+    const currentTitle = roleMatch ? roleMatch[1].trim() : "";
+    const currentCompany = roleMatch?.[2]?.trim() || "";
+
+    // Best-effort email from snippet
+    const emailMatch = snippet.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+    const email = emailMatch ? emailMatch[0] : null;
+
+    // Source company: which target company did this query come from
+    const sourceCompany = targets.find(c =>
+      url.toLowerCase().includes(c.toLowerCase().replace(/\s+/g, "")) ||
+      snippet.toLowerCase().includes(c.toLowerCase()) ||
+      title.toLowerCase().includes(c.toLowerCase())
+    ) || currentCompany || "";
+
+    // Relevance score: keyword overlap with role + skills
+    const kw = [role, ...(skills || []), seniority || ""].map(k => k.toLowerCase());
+    const text = [name, currentTitle, currentCompany, snippet].join(" ").toLowerCase();
+    const score = kw.reduce((n, k) => n + (k && text.includes(k) ? 1 : 0), 0);
+
+    return { name, currentTitle, currentCompany: currentCompany || sourceCompany, linkedinUrl: url, email, snippet, score };
+  }
+
+  // Deduplicate by LinkedIn URL, rank by relevance score
+  const seen = new Set();
+  const candidates = rawResults
+    .map(parseCandidate)
+    .filter(Boolean)
+    .filter(c => {
+      if (seen.has(c.linkedinUrl)) return false;
+      seen.add(c.linkedinUrl);
+      return c.name && c.name !== "Unknown";
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 30);
+
+  res.json({ candidates });
+});
+
+// ─── SPA fallback ─────────────────────────────────────────────────────────────
 app.get("*", (req, res) => {
   res.sendFile(join(__dirname, "dist", "index.html"));
 });
