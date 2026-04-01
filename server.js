@@ -87,41 +87,23 @@ async function callLLM(prompt, maxTokens = 6000) {
   return data.content?.map(b => b.text || "").join("").trim() || "";
 }
 
-// ─── Location → Serper country code ──────────────────────────────────────────
-// Maps common location inputs to Serper gl (Google country) codes
-// Falls back to "us" if unknown
+// ─── Location config — hardcoded to match frontend dropdown exactly ───────────
+const LOCATION_CONFIG = {
+  "United States":  { gl: "us", queryTerm: "" },
+  "Canada":         { gl: "ca", queryTerm: "Canada" },
+  "India":          { gl: "in", queryTerm: "India" },
+  "United Kingdom": { gl: "gb", queryTerm: "United Kingdom" },
+  "Europe":         { gl: "de", queryTerm: "" },
+  "Australia":      { gl: "au", queryTerm: "Australia" },
+  "Singapore":      { gl: "sg", queryTerm: "Singapore" },
+};
+
 function locationToGl(location) {
-  if (!location) return "us";
-  const l = location.toLowerCase();
-  if (l.includes("australia") || l.includes("sydney") || l.includes("melbourne") || l.includes("brisbane")) return "au";
-  if (l.includes("uk") || l.includes("united kingdom") || l.includes("london") || l.includes("england")) return "gb";
-  if (l.includes("canada") || l.includes("toronto") || l.includes("vancouver")) return "ca";
-  if (l.includes("india") || l.includes("bangalore") || l.includes("bengaluru") || l.includes("mumbai") || l.includes("hyderabad") || l.includes("delhi")) return "in";
-  if (l.includes("germany") || l.includes("berlin") || l.includes("munich")) return "de";
-  if (l.includes("singapore")) return "sg";
-  if (l.includes("netherlands") || l.includes("amsterdam")) return "nl";
-  if (l.includes("france") || l.includes("paris")) return "fr";
-  if (l.includes("japan") || l.includes("tokyo")) return "jp";
-  if (l.includes("brazil") || l.includes("são paulo") || l.includes("sao paulo")) return "br";
-  if (l.includes("israel") || l.includes("tel aviv")) return "il";
-  if (l.includes("uae") || l.includes("dubai")) return "ae";
-  // North America / USA catch-all
-  if (l.includes("north america") || l.includes("usa") || l.includes("united states") || l.includes("san francisco") || l.includes("new york") || l.includes("seattle")) return "us";
-  return "us";
+  return LOCATION_CONFIG[location]?.gl || "us";
 }
 
-// Extract a short city/region string to include in the query itself
-// e.g. "North America" → "" (too broad, skip), "Sydney" → "Sydney", "Bangalore" → "Bangalore"
 function locationToQueryTerm(location) {
-  if (!location) return "";
-  const l = location.toLowerCase();
-  // Broad regions — don't add to query, rely on gl code instead
-  if (l.includes("north america") || l.includes("united states") || l.includes("usa")) return "";
-  if (l.includes("europe") || l.includes("global") || l.includes("remote") || l.includes("worldwide")) return "";
-  // Specific cities — include in query for precision
-  const cities = ["sydney","melbourne","london","bangalore","bengaluru","mumbai","hyderabad","delhi","toronto","vancouver","singapore","berlin","amsterdam","paris","tokyo","dubai"];
-  const matched = cities.find(c => l.includes(c));
-  return matched ? matched.charAt(0).toUpperCase() + matched.slice(1) : "";
+  return LOCATION_CONFIG[location]?.queryTerm || "";
 }
 
 // ─── /api/generate ────────────────────────────────────────────────────────────
