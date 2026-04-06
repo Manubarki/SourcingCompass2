@@ -361,38 +361,45 @@ function ResultTabs({ mapData, form }) {
   const nodes = {companies:mapData.companies,adjacent:mapData.adjacent,wildcards:mapData.wildcards,titles:mapData.titles};
   return (
     <div>
-      <div style={{display:"flex",alignItems:"flex-end",gap:0,marginBottom:"24px",borderBottom:"1px solid #e5e7eb"}}>
+      <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"24px",flexWrap:"wrap"}}>
         {TABS.map(t=>(
           <button key={t.id} type="button" onClick={()=>setActive(t.id)}
             style={{
               display:"flex",alignItems:"center",gap:"6px",
-              padding:"10px 16px",
+              padding:"7px 16px",
               fontSize:"13px",fontWeight: active===t.id ? 600 : 500,
               cursor:"pointer",
-              color: active===t.id ? "#111827" : "#9ca3af",
-              borderBottom: active===t.id ? `2px solid ${t.dot}` : "2px solid transparent",
-              marginBottom:"-1px",
-              transition:"all .15s",fontFamily:"Inter,sans-serif",
-              background:"none",border:"none",
-              borderBottom: active===t.id ? `2px solid ${t.dot}` : "2px solid transparent",
+              borderRadius:"999px",
+              color: active===t.id ? "#ffffff" : "#6b7280",
+              background: active===t.id ? t.dot : "#f3f4f6",
+              border: `1.5px solid ${active===t.id ? t.dot : "#e5e7eb"}`,
               outline:"none",
+              boxShadow: active===t.id ? `0 2px 8px ${t.dot}55` : "none",
+              transition:"all .15s",fontFamily:"Inter,sans-serif",
+              whiteSpace:"nowrap",
             }}>
             <div style={{
-              width:"7px",height:"7px",borderRadius:"50%",flexShrink:0,
-              background: active===t.id ? t.dot : "#e5e7eb",
-              boxShadow: active===t.id ? `0 0 0 3px ${t.dot}22` : "none",
+              width:"6px",height:"6px",borderRadius:"50%",flexShrink:0,
+              background: active===t.id ? "rgba(255,255,255,0.75)" : t.dot,
               transition:"all .15s",
             }}/>
             {t.label}
             {t.count && mapData && (
               <span style={{
-                fontSize:"11px",fontWeight:600,
-                color: active===t.id ? t.dot : "#9ca3af",
-                marginLeft:"2px",
+                fontSize:"11px",fontWeight:700,
+                color: active===t.id ? "#ffffff" : t.dot,
+                background: active===t.id ? "rgba(255,255,255,0.2)" : `${t.dot}18`,
+                padding:"1px 6px",borderRadius:"999px",marginLeft:"2px",
               }}>{t.count(mapData)}</span>
             )}
             {t.isNew && (
-              <span style={{fontSize:"9px",padding:"2px 6px",borderRadius:"4px",background:"#fddbe4",border:"1px solid #f894ad",color:"#f34d77",fontWeight:700,marginLeft:"2px"}}>NEW</span>
+              <span style={{
+                fontSize:"9px",padding:"2px 6px",borderRadius:"4px",
+                background: active===t.id ? "rgba(255,255,255,0.25)" : "#fddbe4",
+                color: active===t.id ? "#fff" : "#f34d77",
+                border: active===t.id ? "none" : "1px solid #f894ad",
+                fontWeight:700,marginLeft:"2px",
+              }}>NEW</span>
             )}
           </button>
         ))}
