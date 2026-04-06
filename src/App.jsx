@@ -694,7 +694,7 @@ export default function TalentMap() {
               </select></div>
             <div><label className={labelCls} style={labelStyle}>Seniority</label>
               <select className={inputCls} style={inputStyle} value={form.seniority} onChange={e=>set("seniority",e.target.value)}>
-                {["Junior","Mid","Senior","Staff","Principal","Director","VP"].map(s=><option key={s}>{s}</option>)}
+                {["Intern","Junior","Mid-Level","Senior","Lead","Staff","Principal","Manager","Senior Manager","Director","Senior Director","VP","SVP","C-Level"].map(s=><option key={s}>{s}</option>)}
               </select></div>
           </div>
 
