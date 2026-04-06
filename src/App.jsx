@@ -46,16 +46,15 @@ function TagInput({ placeholder, tags, onChange }) {
 }
 
 // ─── Score bar ────────────────────────────────────────────────────────────────
-function Bar({ label, value, colorClass, trackClass }) {
+function Bar({ label, value, color, track }) {
   return (
-    <div className="mt-2.5">
-      <div className="flex justify-between items-center mb-1.5">
-        <span className="text-xs text-muted-foreground font-medium">{label}</span>
-        <span className={`text-sm font-semibold font-mono ${colorClass}`}>{value}</span>
+    <div style={{marginTop:"10px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}}>
+        <span style={{fontSize:"13px",color:"#6b7280",fontWeight:500,fontFamily:"Inter,sans-serif"}}>{label}</span>
+        <span style={{fontSize:"13px",fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color}}>{value}</span>
       </div>
-      <div className={`w-full h-1.5 rounded-full ${trackClass}`}>
-        <div className={`h-full rounded-full transition-all duration-700 ${colorClass.replace("text-","bg-")}`}
-          style={{width:`${value}%`}}/>
+      <div style={{width:"100%",height:"6px",borderRadius:"999px",background:track}}>
+        <div style={{height:"100%",borderRadius:"999px",background:color,width:`${value}%`,transition:"width 0.7s ease"}}/>
       </div>
     </div>
   );
@@ -78,13 +77,13 @@ function CompanyCard({ node }) {
       {node.tags && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {node.tags.map(t=>(
-            <span key={t} className="text-xs px-2.5 py-0.5 rounded-md font-medium bg-primary/8 text-primary border border-primary/20">{t}</span>
+            <span key={t} style={{fontSize:"12px",padding:"3px 10px",borderRadius:"6px",fontWeight:500,background:"#eff2fe",color:"#4d64d8",border:"1px solid #d2d8f8",fontFamily:"Inter,sans-serif"}}>{t}</span>
           ))}
         </div>
       )}
-      {node.confidence != null && <Bar label="Relevance" value={node.confidence} colorClass="text-score-high" trackClass="bg-score-high/10"/>}
-      {node.talentDensity != null && <Bar label="Talent Density" value={node.talentDensity} colorClass="text-score-medium" trackClass="bg-score-medium/10"/>}
-      {node.poachability != null && <Bar label="Poachability" value={node.poachability} colorClass="text-score-low" trackClass="bg-score-low/10"/>}
+      {node.confidence != null && <Bar label="Relevance" value={node.confidence} color="#1da882" track="rgba(29,168,130,0.12)"/>}
+      {node.talentDensity != null && <Bar label="Talent Density" value={node.talentDensity} color="#4d64d8" track="rgba(77,100,216,0.12)"/>}
+      {node.poachability != null && <Bar label="Poachability" value={node.poachability} color="#4d64d8" track="rgba(77,100,216,0.12)"/>}
       {node.likelyProfile && (
         <div className="mt-3 pt-3 border-t border-border">
           <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">Likely Profile</div>
@@ -134,7 +133,7 @@ function SimpleCard({ node, cat }) {
         </div>
       )}
       {cat==="titles" && node.confidence != null && (
-        <Bar label="Confidence" value={node.confidence} colorClass="text-score-high" trackClass="bg-score-high/10"/>
+        <Bar label="Confidence" value={node.confidence} color="#1da882" track="rgba(29,168,130,0.12)"/>
       )}
     </div>
   );
@@ -165,7 +164,7 @@ function Section({ cat, nodes }) {
 // ─── Candidate card ───────────────────────────────────────────────────────────
 function CandidateCard({ candidate, index }) {
   const initials = candidate.name.split(" ").slice(0,2).map(w=>w[0]||"").join("").toUpperCase()||"?";
-  const colors = ["hsl(var(--primary))","hsl(var(--score-high))","hsl(262 80% 65%)","hsl(var(--score-low))","hsl(340 82% 60%)"];
+  const colors = ["#4d64d8","#1da882","#9b6ef5","#f6720d","#f04e7c"];
   const color = colors[index % colors.length];
   return (
     <div className="bg-card border border-border rounded-lg p-4 hover:shadow-card-hover transition-all duration-200 group">
@@ -285,7 +284,7 @@ function CandidatesTab({ mapData, form }) {
 
       {loading && (
         <div className="flex flex-col items-center gap-4 py-12">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full" style={{animation:"spin 0.8s linear infinite"}}/>
+          <div className="sc-spinner" style={{width:"24px",height:"24px",border:"2px solid #4d64d8",borderTopColor:"transparent",borderRadius:"50%"}}/>
           <div className="text-center">
             <div className="text-sm font-medium text-foreground">Scanning LinkedIn</div>
             <div className="text-xs text-muted-foreground mt-1">{Math.min(targetNames.length,8)*2} queries in flight</div>
@@ -368,7 +367,7 @@ function LoadingScreen() {
   useEffect(()=>{const iv=setInterval(()=>setStep(s=>(s+1)%steps.length),900);return()=>clearInterval(iv);},[]);
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
-      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full" style={{animation:"spin 0.8s linear infinite"}}/>
+      <div className="sc-spinner" style={{width:"24px",height:"24px",border:"2px solid #4d64d8",borderTopColor:"transparent",borderRadius:"50%"}}/>
       <div className="space-y-2 text-center">
         <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Mapping talent</div>
         {steps.map((t,i)=>(
@@ -559,6 +558,8 @@ export default function TalentMap() {
     <style>{`
       .sidebar-input::placeholder { color: #4a5a8a !important; opacity: 1; }
       .sidebar-input { color: #bfc8d6 !important; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      .sc-spinner { animation: spin 0.8s linear infinite; }
     `}</style>
     <div className="flex h-screen overflow-hidden" style={{background:"#f0f4f8"}}>
 
@@ -647,7 +648,7 @@ export default function TalentMap() {
           ) : (
             <div style={{display:"flex",gap:"8px"}}>
               <div style={{flex:1,padding:"11px",borderRadius:"8px",fontSize:"12px",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",background:"#1e2449",color:"#4a5a8a",fontFamily:"Inter,sans-serif"}}>
-                <div style={{width:"14px",height:"14px",border:"2px solid #24c9a0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+                <div className="sc-spinner" style={{width:"14px",height:"14px",border:"2px solid #24c9a0",borderTopColor:"transparent",borderRadius:"50%"}}/>
                 Generating...
               </div>
               <button type="button" onClick={stopGenerate}
@@ -698,7 +699,7 @@ export default function TalentMap() {
             <div className="mb-6 pb-5 border-b border-border flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground leading-tight">
-                  {form.role} <span className="text-muted-foreground/40 font-normal">·</span> <span className="text-muted-foreground font-normal">{form.seniority}</span>
+                  {form.role.split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")} <span style={{color:"#d1d5db",fontWeight:400}}>·</span> <span style={{color:"#6b7280",fontWeight:400}}>{form.seniority}</span>
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1.5">
                   {[form.company,form.location].filter(Boolean).join(" · ")} · {allNodes.length} nodes mapped
