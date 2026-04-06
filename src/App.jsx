@@ -568,12 +568,17 @@ export default function TalentMap() {
         {/* Header */}
         <div className="px-5 pt-5 pb-4" style={{borderBottom:"1px solid #2d3461"}}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{background:"rgba(36,201,160,0.15)",border:"1.5px solid rgba(36,201,160,0.4)"}}>
-              <svg width="18" height="18" viewBox="0 0 28 28" fill="none">
-                <polygon points="14,4 12.2,15 14,13.5 15.8,15" fill="#24c9a0"/>
-                <polygon points="14,24 12.2,13 14,14.5 15.8,13" fill="rgba(36,201,160,0.3)"/>
-                <circle cx="14" cy="14" r="2" fill="#1a1f3c" stroke="#24c9a0" strokeWidth="1.5"/>
+            {/* Logo — teal rounded square with compass arrow, matching screenshot */}
+            <div className="flex-shrink-0" style={{width:"40px",height:"40px",borderRadius:"10px",background:"#132d35",border:"1.5px solid rgba(36,201,160,0.5)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Outer circle */}
+                <circle cx="12" cy="12" r="9" stroke="#24c9a0" strokeWidth="1.5" fill="none"/>
+                {/* Inner circle */}
+                <circle cx="12" cy="12" r="5.5" stroke="#24c9a0" strokeWidth="1" fill="none" opacity="0.5"/>
+                {/* Compass needle — pointing top-right */}
+                <polygon points="12,4.5 10.5,12 12,11 13.5,12" fill="#24c9a0"/>
+                <polygon points="12,19.5 10.5,12 12,13 13.5,12" fill="rgba(36,201,160,0.35)"/>
+                <circle cx="12" cy="12" r="1.5" fill="#132d35" stroke="#24c9a0" strokeWidth="1"/>
               </svg>
             </div>
             <div>
