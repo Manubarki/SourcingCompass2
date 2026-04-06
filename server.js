@@ -89,54 +89,27 @@ async function callEndpoint(url, apiKey, prompt, maxTokens) {
 
 // Primary: Atlan LiteLLM proxy — Fallback: Anthropic direct
 async function callLLM(prompt, maxTokens = 6000) {
-  const primaryUrl = "https://llmproxy.atlan.dev/v1/messages";
-  const fallbackUrl = "https://api.anthropic.com/v1/messages";
-
-  // Try primary first
   if (process.env.LITELLM_API_KEY) {
     try {
       console.log("[LLM] Trying primary (LiteLLM proxy)...");
-      const result = await callEndpoint(primaryUrl, process.env.LITELLM_API_KEY, prompt, maxTokens);
+      const result = await callEndpoint("https://llmproxy.atlan.dev/v1/messages", process.env.LITELLM_API_KEY, prompt, maxTokens);
       console.log("[LLM] Primary succeeded.");
       return result;
     } catch (err) {
       console.warn("[LLM] Primary failed:", err.message, "— trying fallback...");
     }
-  } else {
-    console.warn("[LLM] LITELLM_API_KEY not set — skipping primary.");
   }
-
-  // Fallback: Anthropic direct
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       console.log("[LLM] Trying fallback (Anthropic direct)...");
-      const result = await callEndpoint(fallbackUrl, process.env.ANTHROPIC_API_KEY, prompt, maxTokens);
+      const result = await callEndpoint("https://api.anthropic.com/v1/messages", process.env.ANTHROPIC_API_KEY, prompt, maxTokens);
       console.log("[LLM] Fallback succeeded.");
       return result;
     } catch (err) {
-      console.error("[LLM] Fallback also failed:", err.message);
       throw new Error("Both LLM endpoints failed. Last error: " + err.message);
     }
   }
-
   throw new Error("No LLM API key configured. Set LITELLM_API_KEY or ANTHROPIC_API_KEY.");
-}
-
-// ─── Location config ─────────────────────────────────────────────────────────
-// site: LinkedIn uses country subdomains for non-US locations
-// gl:   Serper country code for Google search localisation
-const LOCATION_CONFIG = {
-  "United States":  { site: "linkedin.com/in",    gl: "us" },
-  "Canada":         { site: "ca.linkedin.com/in",  gl: "ca" },
-  "India":          { site: "in.linkedin.com/in",  gl: "in" },
-  "United Kingdom": { site: "uk.linkedin.com/in",  gl: "gb" },
-  "Europe":         { site: "linkedin.com/in",     gl: "de" },
-  "Australia":      { site: "au.linkedin.com/in",  gl: "au" },
-  "Singapore":      { site: "sg.linkedin.com/in",  gl: "sg" },
-};
-
-function getLocationConfig(location) {
-  return LOCATION_CONFIG[location] || { site: "linkedin.com/in", gl: "us" };
 }
 
 // ─── /api/generate ────────────────────────────────────────────────────────────
@@ -157,7 +130,7 @@ app.post("/api/generate", async (req, res) => {
   }
 });
 
-// ─── /api/source ──────────────────────────────────────────────────────────────
+// ─── /api/source — X-ray candidate sourcing via Serper ───────────────────────
 app.post("/api/source", async (req, res) => {
   const { companies, role, skills, seniority, location } = req.body;
   if (!companies?.length || !role) return res.status(400).json({ error: "companies and role are required" });
@@ -168,45 +141,20 @@ app.post("/api/source", async (req, res) => {
   const targets = companies.slice(0, 8);
   const normTargets = targets.map(t => t.toLowerCase().replace(/[^a-z0-9]/g, ""));
 
-  // Resolve location → LinkedIn subdomain + Serper gl code
-  const { site, gl } = getLocationConfig(location);
-
-  // Seniority — must appear in title
-  const SENIORITY_MAP = {
-    "junior":    ["junior", "associate", "entry"],
-    "mid":       ["mid", "intermediate", " ii", " 2"],
-    "senior":    ["senior", "sr "],
-    "staff":     ["staff"],
-    "principal": ["principal", "distinguished"],
-    "director":  ["director", "head of"],
-    "vp":        ["vp ", "vice president"],
-  };
-  const senKey   = (seniority || "").toLowerCase();
-  const senTerms = SENIORITY_MAP[senKey] || [senKey];
-
-  // Role core (strip seniority prefix)
-  const roleCore = role.toLowerCase()
-    .replace(/^(junior|mid|senior|staff|principal|director|vp)\s+/i, "")
-    .trim();
-  const roleCoreWords = roleCore.split(/\s+/).filter(w => w.length > 3);
-
   const topSkill    = skills?.[0] || "";
   const secondSkill = skills?.[1] || "";
 
-  // Build X-ray queries — each skill is a separate quoted AND term
-  // site: uses the correct LinkedIn country subdomain (au.linkedin.com/in for Australia etc.)
+  // Simple, proven X-ray query format:
+  // site:linkedin.com/in "Company" "Role" "Skill"
+  // Q1: company + full role title + top skill
+  // Q2: company + role + second skill (broader net)
   const queries = targets.flatMap(company => {
-    // Q1: exact seniority+role phrase + top skill — tightest signal
     const q1 = topSkill
-      ? `site:${site} "${company}" "${seniority} ${roleCore}" "${topSkill}"`
-      : `site:${site} "${company}" "${seniority} ${roleCore}"`;
-    // Q2: role core only + second skill — catches title variations
-    // e.g. "Staff Data Engineer" won't match "Staff engineer" phrase but will match "engineer" + "Databricks"
+      ? `site:linkedin.com/in "${company}" "${role}" "${topSkill}"`
+      : `site:linkedin.com/in "${company}" "${role}"`;
     const q2 = secondSkill
-      ? `site:${site} "${company}" "${roleCore}" "${secondSkill}"`
-      : topSkill
-        ? `site:${site} "${company}" "${roleCore}" "${topSkill}"`
-        : `site:${site} "${company}" "${seniority}" "${roleCore}"`;
+      ? `site:linkedin.com/in "${company}" "${role}" "${secondSkill}"`
+      : `site:linkedin.com/in "${company}" "${seniority}" "${role}"`;
     return [q1, q2];
   });
 
@@ -217,11 +165,12 @@ app.post("/api/source", async (req, res) => {
         fetch("https://google.serper.dev/search", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-API-KEY": SERPER_KEY },
-          body: JSON.stringify({ q, num: 5, gl }),  // ← dynamic country code
+          body: JSON.stringify({ q, num: 5 }),
         }).then(r => r.json()).catch(() => ({ organic: [] }))
       )
     );
     rawResults = responses.flatMap(r => r.organic || []);
+    console.log(`[SOURCE] Raw Serper results: ${rawResults.length}`);
   } catch (err) {
     return res.status(500).json({ error: "Serper search failed: " + err.message });
   }
@@ -233,11 +182,11 @@ app.post("/api/source", async (req, res) => {
     const snippet  = result.snippet || "";
     const rawTitle = result.title   || "";
 
-    // Name: before first " - " or " | "
+    // Name: everything before first " - " or " | "
     const nameMatch = rawTitle.match(/^([^|\-]+?)(?:\s*[-|]|$)/);
     const name = nameMatch ? nameMatch[1].trim() : "Unknown";
 
-    // Title: strip name prefix, then strip "at/@ Company" and "| LinkedIn" suffixes
+    // Title: strip name, company suffix, LinkedIn suffix
     const afterName = rawTitle.replace(/^[^-]+-\s*/, "");
     const cleanedTitle = afterName
       .replace(/\s*\|.*$/, "")
@@ -245,7 +194,7 @@ app.post("/api/source", async (req, res) => {
       .replace(/\s+at\s+.+$/i, "")
       .trim();
 
-    // Company: "at Company" pattern
+    // Company from "at Company" pattern
     const atMatch = rawTitle.match(/\s+(?:at|@)\s+([^|]+?)(?:\s*\||$)/i);
     const currentCompany = atMatch ? atMatch[1].trim() : "";
 
@@ -258,34 +207,17 @@ app.post("/api/source", async (req, res) => {
       rawTitle.toLowerCase().includes(c.toLowerCase())
     ) || currentCompany || "";
 
-    // Relevance score — skills weighted higher
-    const kw = [role, roleCore, seniority || "", ...(skills || []).map(s => s.toLowerCase())];
+    const kw = [role, ...(skills || []), seniority || ""].map(k => k.toLowerCase());
     const fullText = [name, cleanedTitle, currentCompany, snippet].join(" ").toLowerCase();
-    // Skills get 2 points each (higher weight), other keywords get 1
-    const score = kw.reduce((n, k, i) => {
-      if (!k) return n;
-      const hit = fullText.includes(k.toLowerCase());
-      return n + (hit ? (i >= 2 + 1 ? 2 : 1) : 0); // skills start at index 3
-    }, 0);
+    const score = kw.reduce((n, k) => n + (k && fullText.includes(k) ? 1 : 0), 0);
 
     return { name, currentTitle: cleanedTitle, currentCompany: currentCompany || sourceCompany, linkedinUrl: url, email, snippet, score };
   }
 
-  // STRICT: title must have seniority AND role core word
-  function hasTitleMatch(c) {
-    const t = (c.currentTitle || "").toLowerCase();
-    const s = (c.snippet    || "").toLowerCase();
-    // Prefer title check; fall back to snippet only if title is empty
-    const check = t.length > 2 ? t : s;
-    const hasSen  = senTerms.some(term => check.includes(term));
-    const hasRole = roleCoreWords.length === 0 || roleCoreWords.some(w => check.includes(w));
-    return hasSen && hasRole;
-  }
-
-  // STRICT: must match a target company
+  // Company filter: must be from one of the 8 targets
   function isFromTargetCompany(c) {
     const compNorm = (c.currentCompany || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const snipNorm = (c.snippet        || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const snipNorm = (c.snippet || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const urlNorm  = c.linkedinUrl.toLowerCase();
     return normTargets.some(t =>
       (compNorm && (compNorm.includes(t) || t.includes(compNorm))) ||
@@ -294,50 +226,19 @@ app.post("/api/source", async (req, res) => {
     );
   }
 
-  // MUST-HAVE skills check — at least one skill must appear in snippet or title
-  function hasSkillMatch(c) {
-    if (!skills || skills.length === 0) return true;
-    const check = [(c.currentTitle || ""), (c.snippet || "")].join(" ").toLowerCase();
-    return skills.some(sk => check.includes(sk.toLowerCase()));
-  }
-
-  // Debug: log what we got from Serper before filtering
-  const parsed = rawResults.map(parseCandidate).filter(Boolean);
-  console.log(`[SOURCE] Raw results: ${rawResults.length}, parsed LinkedIn profiles: ${parsed.length}`);
-  parsed.forEach(c => {
-    const compOk  = isFromTargetCompany(c);
-    const titleOk = hasTitleMatch(c);
-    const skillOk = hasSkillMatch(c);
-    console.log(`  [${compOk?"C":"x"}${titleOk?"T":"x"}${skillOk?"S":"x"}] "${c.name}" | title:"${c.currentTitle}" | company:"${c.currentCompany}"`);
-  });
-
   const seen = new Set();
-  const candidates = parsed
+  const candidates = rawResults
+    .map(parseCandidate)
+    .filter(Boolean)
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      // Company filter: hard — results must come from target companies
-      if (!isFromTargetCompany(c)) return false;
-      // Title filter: soft — use OR not AND (seniority OR role word is enough)
-      const t = (c.currentTitle || "").toLowerCase();
-      const s = (c.snippet || "").toLowerCase();
-      const check = t.length > 2 ? t : s;
-      const hasSen  = senTerms.some(term => check.includes(term));
-      const hasRole = roleCoreWords.length === 0 || roleCoreWords.some(w => check.includes(w));
-      if (!hasSen && !hasRole) return false; // drop only if BOTH fail
-      // Skill filter: soft — only apply if skills were provided AND snippet is non-empty
-      if (skills?.length > 0 && c.snippet) {
-        const skillCheck = [t, s].join(" ");
-        const hasSkill = skills.some(sk => skillCheck.includes(sk.toLowerCase()));
-        if (!hasSkill) return false;
-      }
-      return c.name && c.name !== "Unknown";
+      return c.name && c.name !== "Unknown" && isFromTargetCompany(c);
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
-  
-  console.log(`[SOURCE] After filters: ${candidates.length} candidates`);
 
+  console.log(`[SOURCE] After filters: ${candidates.length} candidates`);
   res.json({ candidates });
 });
 
