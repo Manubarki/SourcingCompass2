@@ -74,7 +74,7 @@ async function callEndpoint(url, apiKey, prompt, maxTokens) {
       "x-api-key": apiKey,
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-haiku-4-5-20251001",
       messages: [{ role: "user", content: prompt }],
       max_tokens: maxTokens,
     }),
