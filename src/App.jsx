@@ -382,6 +382,158 @@ function CandidatesTab({ mapData, form }) {
   );
 }
 
+
+// ─── X-Ray Builder ────────────────────────────────────────────────────────────
+function XRayTab({ mapData, form }) {
+  const [copied, setCopied] = useState(null);
+
+  const LINKEDIN_SITE = {
+    "United States": "linkedin.com/in",
+    "Canada":        "ca.linkedin.com/in",
+    "India":         "in.linkedin.com/in",
+    "United Kingdom":"uk.linkedin.com/in",
+    "Europe":        "linkedin.com/in",
+    "Australia":     "au.linkedin.com/in",
+    "Singapore":     "sg.linkedin.com/in",
+  };
+  const site = LINKEDIN_SITE[form.location] || "linkedin.com/in";
+
+  // Generate strings
+  const companies = (mapData.companies||[]).map(c=>c.label);
+  const adjacent  = (mapData.adjacent ||[]).map(c=>c.label);
+  const wildcards = (mapData.wildcards||[]).map(c=>c.label);
+  const titles    = (mapData.titles   ||[]).map(t=>t.label);
+  const skill1    = form.skills?.[0] || "";
+  const skill2    = form.skills?.[1] || "";
+  const locHint   = (form.location==="United States"||form.location==="Europe") ? ` "${form.location}"` : "";
+
+  function buildStrings() {
+    const strings = [];
+    // Per company + role
+    companies.slice(0,6).forEach(co => {
+      strings.push({
+        label: co,
+        category: "Target Company",
+        dot: "#4d64d8",
+        queries: [
+          `site:${site} "${co}" "${form.role}"${locHint}`,
+          skill1 ? `site:${site} "${co}" "${form.role}" ${skill1}${locHint}` : null,
+        ].filter(Boolean),
+      });
+    });
+    // Per title across all companies
+    titles.slice(0,5).forEach(title => {
+      const coList = companies.slice(0,4).map(c=>`"${c}"`).join(" OR ");
+      strings.push({
+        label: title,
+        category: "Target Title",
+        dot: "#1da882",
+        queries: [
+          `site:${site} "${title}"${locHint}`,
+          coList ? `site:${site} "${title}" (${coList})${locHint}` : null,
+        ].filter(Boolean),
+      });
+    });
+    // Adjacent pools
+    adjacent.slice(0,4).forEach(co => {
+      strings.push({
+        label: co,
+        category: "Adjacent Pool",
+        dot: "#9b6ef5",
+        queries: [
+          `site:${site} "${co}" "${form.role}"${locHint}`,
+          skill1 ? `site:${site} "${co}" ${skill1} ${form.seniority}${locHint}` : null,
+        ].filter(Boolean),
+      });
+    });
+    // Wildcard
+    wildcards.slice(0,3).forEach(co => {
+      strings.push({
+        label: co,
+        category: "Wildcard",
+        dot: "#f6720d",
+        queries: [
+          `site:${site} "${co}" ${form.seniority} engineer${locHint}`,
+          skill1 ? `site:${site} "${co}" ${skill1}${locHint}` : null,
+        ].filter(Boolean),
+      });
+    });
+    return strings;
+  }
+
+  const strings = buildStrings();
+
+  function copy(text, id) {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(()=>setCopied(null), 2000);
+  }
+
+  function openGoogle(q) {
+    window.open("https://www.google.com/search?q="+encodeURIComponent(q), "_blank");
+  }
+
+  const CAT_COLORS = {
+    "Target Company": {bg:"#eff2fe", text:"#4d64d8", border:"#d2d8f8"},
+    "Target Title":   {bg:"#f0fdf9", text:"#1da882", border:"#a7f3d0"},
+    "Adjacent Pool":  {bg:"#f5f3ff", text:"#7c3aed", border:"#ddd6fe"},
+    "Wildcard":       {bg:"#fff7ed", text:"#c2410c", border:"#fed7aa"},
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"6px"}}>
+        <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"#0891b2",boxShadow:"0 0 0 3px rgba(8,145,178,0.15)"}}/>
+        <span style={{fontSize:"11px",fontWeight:600,color:"#374151",textTransform:"uppercase",letterSpacing:"0.1em",fontFamily:"Inter,sans-serif"}}>X-Ray Search Strings</span>
+        <div style={{flex:1,height:"1px",background:"#f3f4f6"}}/>
+        <span style={{fontSize:"11px",color:"#9ca3af",fontFamily:"Inter,sans-serif"}}>{strings.length} strings</span>
+      </div>
+      <p style={{fontSize:"12px",color:"#9ca3af",marginBottom:"20px",fontFamily:"Inter,sans-serif"}}>
+        Ready-to-use Google X-ray strings. Click to open in Google or copy to clipboard.
+      </p>
+
+      <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+        {strings.map((group, gi) => {
+          const col = CAT_COLORS[group.category] || CAT_COLORS["Target Company"];
+          return (
+            <div key={gi} style={{background:"#ffffff",border:"1px solid #e5e7eb",borderRadius:"10px",padding:"14px",borderLeft:`3px solid ${group.dot}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+                <span style={{fontSize:"13px",fontWeight:700,color:"#111827",fontFamily:"Inter,sans-serif"}}>{group.label}</span>
+                <span style={{fontSize:"10px",padding:"2px 8px",borderRadius:"4px",fontWeight:600,background:col.bg,color:col.text,border:`1px solid ${col.border}`,fontFamily:"Inter,sans-serif"}}>{group.category}</span>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:"7px"}}>
+                {group.queries.map((q, qi) => (
+                  <div key={qi} style={{display:"flex",alignItems:"center",gap:"8px",background:"#f8fafc",borderRadius:"7px",padding:"8px 10px",border:"1px solid #e5e7eb"}}>
+                    <span style={{flex:1,fontSize:"12px",color:"#374151",fontFamily:"'JetBrains Mono',monospace",wordBreak:"break-all",lineHeight:1.5}}>{q}</span>
+                    <div style={{display:"flex",gap:"5px",flexShrink:0}}>
+                      <button type="button" onClick={()=>copy(q, `${gi}-${qi}`)}
+                        style={{padding:"5px 10px",borderRadius:"6px",fontSize:"11px",fontWeight:600,border:"1px solid #e5e7eb",background: copied===`${gi}-${qi}` ? "#f0fdf9" : "#ffffff",color: copied===`${gi}-${qi}` ? "#1da882" : "#6b7280",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
+                        {copied===`${gi}-${qi}` ? "✓ Copied" : "Copy"}
+                      </button>
+                      <button type="button" onClick={()=>openGoogle(q)}
+                        style={{padding:"5px 10px",borderRadius:"6px",fontSize:"11px",fontWeight:600,border:"1px solid #4d64d8",background:"#4d64d8",color:"#ffffff",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
+                        Search ↗
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{marginTop:"16px",padding:"12px 14px",background:"#f8fafc",borderRadius:"8px",border:"1px solid #e5e7eb"}}>
+        <div style={{fontSize:"11px",fontWeight:600,color:"#374151",marginBottom:"6px",fontFamily:"Inter,sans-serif"}}>💡 How to use</div>
+        <div style={{fontSize:"12px",color:"#6b7280",lineHeight:1.6,fontFamily:"Inter,sans-serif"}}>
+          Click <strong>Search ↗</strong> to open directly in Google, or <strong>Copy</strong> and paste into any browser. 
+          Results are LinkedIn profiles matching your criteria. Refine by adding skills or location to any string.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
   { id:"companies", label:"Companies",  dot:"#4d64d8", count:d=>d.companies?.length },
@@ -389,6 +541,7 @@ const TABS = [
   { id:"wildcards", label:"Wildcards",  dot:"#f6720d", count:d=>d.wildcards?.length  },
   { id:"titles",    label:"Titles",     dot:"#1da882", count:d=>d.titles?.length     },
   { id:"candidates",label:"Candidates", dot:"#f04e7c", isNew:true },
+  { id:"xray",      label:"X-Ray",      dot:"#0891b2", isNew:true },
 ];
 
 function ResultTabs({ mapData, form }) {
@@ -443,6 +596,8 @@ function ResultTabs({ mapData, form }) {
       </div>
       {active==="candidates"
         ? <CandidatesTab mapData={mapData} form={form}/>
+        : active==="xray"
+        ? <XRayTab mapData={mapData} form={form}/>
         : <Section cat={active} nodes={nodes[active]}/>
       }
     </div>
