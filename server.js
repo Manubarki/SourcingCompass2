@@ -150,6 +150,7 @@ app.post("/api/source", async (req, res) => {
     "Canada":        "ca.linkedin.com/in",
     "India":         "in.linkedin.com/in",
     "United Kingdom":"uk.linkedin.com/in",
+    "Europe":        "linkedin.com/in",
     "Australia":     "au.linkedin.com/in",
     "Singapore":     "sg.linkedin.com/in",
   };
@@ -232,6 +233,13 @@ app.post("/api/source", async (req, res) => {
     );
   }
 
+  // Skill filter: at least one must-have skill must appear in snippet or title
+  function hasSkillMatch(c) {
+    if (!skills || skills.length === 0) return true;
+    const check = [(c.currentTitle || ""), (c.snippet || "")].join(" ").toLowerCase();
+    return skills.some(sk => check.includes(sk.toLowerCase()));
+  }
+
   const seen = new Set();
   const candidates = rawResults
     .map(parseCandidate)
@@ -239,7 +247,7 @@ app.post("/api/source", async (req, res) => {
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      return c.name && c.name !== "Unknown" && isFromTargetCompany(c);
+      return c.name && c.name !== "Unknown" && isFromTargetCompany(c) && hasSkillMatch(c);
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
