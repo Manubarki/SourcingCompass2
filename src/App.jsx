@@ -38,8 +38,8 @@ function TagInput({ placeholder, tags, onChange }) {
             className="text-tag-remove/70 hover:text-tag-remove leading-none ml-0.5">×</button>
         </span>
       ))}
-      <input ref={ref} className="bg-transparent text-sm text-sidebar-foreground placeholder-sidebar-foreground/30 outline-none flex-1 min-w-[80px]"
-        placeholder={tags.length?"":placeholder} value={input}
+      <input ref={ref} className="sidebar-input bg-transparent outline-none flex-1 min-w-[80px]"
+        style={{fontSize:"13px",color:"#bfc8d6"}} placeholder={tags.length?"":placeholder} value={input}
         onChange={e=>setInput(e.target.value)} onKeyDown={handleKey} onPaste={handlePaste}/>
     </div>
   );
@@ -550,11 +550,16 @@ export default function TalentMap() {
     a.download="SourcingCompass_"+form.role.replace(/\s+/g,"_")+".csv"; a.click();
   }
 
-  const inputCls = "w-full rounded-md px-3 py-2 text-sm focus:outline-none transition-colors";
+  const inputCls = "sidebar-input w-full rounded-md px-3 py-2 text-sm focus:outline-none transition-colors";
   const inputStyle = {background:"#1e2449",border:"1px solid #2d3461",color:"#bfc8d6"};
   const labelCls = "block text-xs font-medium mb-1.5 tracking-wide"; const labelStyle = {color:"#8892b0"};
 
   return (
+    <>
+    <style>{`
+      .sidebar-input::placeholder { color: #4a5a8a !important; opacity: 1; }
+      .sidebar-input { color: #bfc8d6 !important; }
+    `}</style>
     <div className="flex h-screen overflow-hidden" style={{background:"#f0f4f8"}}>
 
       {/* ── Sidebar ── */}
@@ -710,5 +715,6 @@ export default function TalentMap() {
 
       <Chatbot/>
     </div>
+    </>
   );
 }
