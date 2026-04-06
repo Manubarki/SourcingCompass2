@@ -196,11 +196,17 @@ app.post("/api/source", async (req, res) => {
   // Build X-ray queries — each skill is a separate quoted AND term
   // site: uses the correct LinkedIn country subdomain (au.linkedin.com/in for Australia etc.)
   const queries = targets.flatMap(company => {
-    const base = `site:${site} "${company}" "${seniority} ${roleCore}"`;
-    // Q1: base + top skill (mandatory keyword as separate AND term)
-    const q1 = topSkill ? `${base} "${topSkill}"` : base;
-    // Q2: base + second skill (or repeat top skill for more results)
-    const q2 = secondSkill ? `${base} "${secondSkill}"` : (topSkill ? `${base} "${topSkill}"` : base);
+    // Q1: exact seniority+role phrase + top skill — tightest signal
+    const q1 = topSkill
+      ? `site:${site} "${company}" "${seniority} ${roleCore}" "${topSkill}"`
+      : `site:${site} "${company}" "${seniority} ${roleCore}"`;
+    // Q2: role core only + second skill — catches title variations
+    // e.g. "Staff Data Engineer" won't match "Staff engineer" phrase but will match "engineer" + "Databricks"
+    const q2 = secondSkill
+      ? `site:${site} "${company}" "${roleCore}" "${secondSkill}"`
+      : topSkill
+        ? `site:${site} "${company}" "${roleCore}" "${topSkill}"`
+        : `site:${site} "${company}" "${seniority}" "${roleCore}"`;
     return [q1, q2];
   });
 
@@ -295,23 +301,42 @@ app.post("/api/source", async (req, res) => {
     return skills.some(sk => check.includes(sk.toLowerCase()));
   }
 
+  // Debug: log what we got from Serper before filtering
+  const parsed = rawResults.map(parseCandidate).filter(Boolean);
+  console.log(`[SOURCE] Raw results: ${rawResults.length}, parsed LinkedIn profiles: ${parsed.length}`);
+  parsed.forEach(c => {
+    const compOk  = isFromTargetCompany(c);
+    const titleOk = hasTitleMatch(c);
+    const skillOk = hasSkillMatch(c);
+    console.log(`  [${compOk?"C":"x"}${titleOk?"T":"x"}${skillOk?"S":"x"}] "${c.name}" | title:"${c.currentTitle}" | company:"${c.currentCompany}"`);
+  });
+
   const seen = new Set();
-  const candidates = rawResults
-    .map(parseCandidate)
-    .filter(Boolean)
+  const candidates = parsed
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      return (
-        c.name &&
-        c.name !== "Unknown" &&
-        isFromTargetCompany(c) &&
-        hasTitleMatch(c) &&
-        hasSkillMatch(c)       // ← new: must show at least one must-have skill
-      );
+      // Company filter: hard — results must come from target companies
+      if (!isFromTargetCompany(c)) return false;
+      // Title filter: soft — use OR not AND (seniority OR role word is enough)
+      const t = (c.currentTitle || "").toLowerCase();
+      const s = (c.snippet || "").toLowerCase();
+      const check = t.length > 2 ? t : s;
+      const hasSen  = senTerms.some(term => check.includes(term));
+      const hasRole = roleCoreWords.length === 0 || roleCoreWords.some(w => check.includes(w));
+      if (!hasSen && !hasRole) return false; // drop only if BOTH fail
+      // Skill filter: soft — only apply if skills were provided AND snippet is non-empty
+      if (skills?.length > 0 && c.snippet) {
+        const skillCheck = [t, s].join(" ");
+        const hasSkill = skills.some(sk => skillCheck.includes(sk.toLowerCase()));
+        if (!hasSkill) return false;
+      }
+      return c.name && c.name !== "Unknown";
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
+  
+  console.log(`[SOURCE] After filters: ${candidates.length} candidates`);
 
   res.json({ candidates });
 });
