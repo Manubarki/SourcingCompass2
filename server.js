@@ -233,13 +233,6 @@ app.post("/api/source", async (req, res) => {
     );
   }
 
-  // Skill filter: at least one must-have skill must appear in snippet or title
-  function hasSkillMatch(c) {
-    if (!skills || skills.length === 0) return true;
-    const check = [(c.currentTitle || ""), (c.snippet || "")].join(" ").toLowerCase();
-    return skills.some(sk => check.includes(sk.toLowerCase()));
-  }
-
   const seen = new Set();
   const candidates = rawResults
     .map(parseCandidate)
@@ -247,7 +240,7 @@ app.post("/api/source", async (req, res) => {
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      return c.name && c.name !== "Unknown" && isFromTargetCompany(c) && hasSkillMatch(c);
+      return c.name && c.name !== "Unknown" && isFromTargetCompany(c);
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
