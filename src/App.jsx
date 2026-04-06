@@ -61,51 +61,72 @@ function Bar({ label, value, color, track }) {
 }
 
 // ─── Company card ─────────────────────────────────────────────────────────────
+const NAME_COLORS = ["#2563eb","#7c3aed","#0891b2","#059669","#dc2626","#d97706","#db2777","#4f46e5"];
+function nameColor(label) {
+  let h = 0;
+  for(let i=0;i<label.length;i++) h = (h*31 + label.charCodeAt(i)) & 0xffff;
+  return NAME_COLORS[h % NAME_COLORS.length];
+}
+
 function CompanyCard({ node }) {
   const [hov, setHov] = useState(false);
+  const color = nameColor(node.label||"");
   return (
-    <div className="relative bg-card border border-border rounded-lg p-4 transition-all duration-200 cursor-default animate-fade-in"
-      style={{boxShadow: hov ? "var(--shadow-card-hover)" : "var(--shadow-card)"}}
+    <div style={{
+        position:"relative", background:"#ffffff", border:"1px solid #e5e7eb",
+        borderRadius:"10px", padding:"16px", cursor:"default",
+        boxShadow: hov ? "0 8px 24px rgba(77,100,216,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
+        transition:"box-shadow .15s, border-color .15s",
+        borderColor: hov ? "#d2d8f8" : "#e5e7eb",
+        overflow:"visible", zIndex: hov ? 10 : 1,
+      }}
       onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}>
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <div className="text-[15px] font-semibold text-foreground">{node.label}</div>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"8px",marginBottom:"4px"}}>
+        <div style={{fontSize:"15px",fontWeight:700,color,fontFamily:"Inter,sans-serif",letterSpacing:"-0.01em"}}>{node.label}</div>
         {node.stage && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium whitespace-nowrap flex-shrink-0 border border-border">{node.stage}</span>
+          <span style={{fontSize:"10px",padding:"2px 8px",borderRadius:"999px",background:"#f3f4f6",color:"#6b7280",border:"1px solid #e5e7eb",fontWeight:500,whiteSpace:"nowrap",flexShrink:0,fontFamily:"Inter,sans-serif"}}>{node.stage}</span>
         )}
       </div>
-      {node.sub && <div className="text-sm text-muted-foreground mb-3">{node.sub}</div>}
+      {node.sub && <div style={{fontSize:"13px",color:"#6b7280",marginBottom:"10px",fontFamily:"Inter,sans-serif"}}>{node.sub}</div>}
       {node.tags && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div style={{display:"flex",flexWrap:"wrap",gap:"5px",marginBottom:"10px"}}>
           {node.tags.map(t=>(
-            <span key={t} style={{fontSize:"12px",padding:"3px 10px",borderRadius:"6px",fontWeight:500,background:"#eff2fe",color:"#4d64d8",border:"1px solid #d2d8f8",fontFamily:"Inter,sans-serif"}}>{t}</span>
+            <span key={t} style={{fontSize:"11px",padding:"3px 9px",borderRadius:"5px",fontWeight:500,background:"#eff2fe",color:"#4d64d8",border:"1px solid #d2d8f8",fontFamily:"Inter,sans-serif"}}>{t}</span>
           ))}
         </div>
       )}
-      {node.confidence != null && <Bar label="Relevance" value={node.confidence} color="#1da882" track="rgba(29,168,130,0.12)"/>}
-      {node.talentDensity != null && <Bar label="Talent Density" value={node.talentDensity} color="#4d64d8" track="rgba(77,100,216,0.12)"/>}
-      {node.poachability != null && <Bar label="Poachability" value={node.poachability} color="#4d64d8" track="rgba(77,100,216,0.12)"/>}
+      <Bar label="Relevance" value={node.confidence??0} color="#1da882" track="rgba(29,168,130,0.12)"/>
+      <Bar label="Talent Density" value={node.talentDensity??0} color="#4d64d8" track="rgba(77,100,216,0.12)"/>
+      <Bar label="Poachability" value={node.poachability??0} color="#4d64d8" track="rgba(77,100,216,0.12)"/>
       {node.likelyProfile && (
-        <div className="mt-3 pt-3 border-t border-border">
-          <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">Likely Profile</div>
-          <div className="text-xs text-muted-foreground leading-relaxed">{node.likelyProfile}</div>
+        <div style={{marginTop:"12px",paddingTop:"12px",borderTop:"1px solid #f3f4f6"}}>
+          <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"4px",fontFamily:"Inter,sans-serif"}}>Likely Profile</div>
+          <div style={{fontSize:"12px",color:"#6b7280",lineHeight:1.5,fontFamily:"Inter,sans-serif"}}>{node.likelyProfile}</div>
         </div>
       )}
       {node.poachabilitySignals?.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-border">
-          <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5">Signals</div>
+        <div style={{marginTop:"10px",paddingTop:"10px",borderTop:"1px solid #f3f4f6"}}>
+          <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"6px",fontFamily:"Inter,sans-serif"}}>Signals</div>
           {node.poachabilitySignals.map((sig,i)=>(
-            <div key={i} className="flex gap-2 mt-1">
-              <span className="text-muted-foreground/40 text-xs mt-0.5 flex-shrink-0">›</span>
-              <span className="text-xs text-muted-foreground leading-relaxed">{sig}</span>
+            <div key={i} style={{display:"flex",gap:"8px",marginTop:"4px"}}>
+              <span style={{color:"#d1d5db",fontSize:"12px",flexShrink:0}}>›</span>
+              <span style={{fontSize:"12px",color:"#6b7280",lineHeight:1.4,fontFamily:"Inter,sans-serif"}}>{sig}</span>
             </div>
           ))}
         </div>
       )}
       {node.whyRelevant && hov && (
-        <div className="absolute top-2 left-full z-50 pl-3 pointer-events-none" style={{width:"210px"}}>
-          <div className="bg-card border border-primary/30 rounded-lg p-3 shadow-card-hover" style={{borderLeft:"3px solid hsl(var(--primary))"}}>
-            <div className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-1.5">Why relevant</div>
-            <div className="text-xs text-foreground leading-relaxed">{node.whyRelevant}</div>
+        <div style={{
+          position:"absolute", top:"8px", left:"calc(100% + 12px)",
+          width:"220px", zIndex:100, pointerEvents:"none",
+        }}>
+          <div style={{
+            background:"#ffffff", border:"1px solid #d2d8f8",
+            borderLeft:"3px solid #4d64d8", borderRadius:"10px",
+            padding:"12px", boxShadow:"0 8px 24px rgba(77,100,216,0.15)",
+          }}>
+            <div style={{fontSize:"10px",color:"#4d64d8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"6px",fontFamily:"Inter,sans-serif"}}>Why relevant</div>
+            <div style={{fontSize:"12px",color:"#374151",lineHeight:1.5,fontFamily:"Inter,sans-serif"}}>{node.whyRelevant}</div>
           </div>
         </div>
       )}
@@ -123,7 +144,7 @@ function SimpleCard({ node, cat }) {
   };
   return (
     <div className="bg-card border border-border rounded-lg p-4 transition-all duration-200 hover:shadow-card-hover animate-fade-in">
-      <div className="text-[15px] font-semibold text-foreground mb-1">{node.label}</div>
+      <div style={{fontSize:"15px",fontWeight:700,color:nameColor(node.label||""),fontFamily:"Inter,sans-serif",marginBottom:"4px"}}>{node.label}</div>
       {node.sub && <div className="text-sm text-muted-foreground mb-2">{node.sub}</div>}
       {node.tags && (
         <div className="flex flex-wrap gap-1.5 mt-2">
@@ -151,7 +172,7 @@ function Section({ cat, nodes }) {
         <span className="text-xs text-muted-foreground">{nodes.length} results</span>
       </div>
       <p className="text-xs text-muted-foreground mb-4 ml-4">{s.desc}</p>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3" style={{overflow:"visible"}}>
         {nodes.map(n => cat==="companies"
           ? <CompanyCard key={n.id} node={n}/>
           : <SimpleCard key={n.id} node={n} cat={cat}/>
@@ -676,7 +697,7 @@ export default function TalentMap() {
       </ResizableSidebar>
 
       {/* ── Canvas ── */}
-      <div className="flex-1 relative overflow-y-auto min-w-0" style={{background:"#f0f4f8"}}>
+      <div className="flex-1 relative overflow-y-auto min-w-0" style={{background:"#f0f4f8",overflowX:"visible"}}>
         {!generated && !loading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
             <div className="w-16 h-16 rounded-2xl bg-card border border-border flex items-center justify-center mb-5 shadow-card">
