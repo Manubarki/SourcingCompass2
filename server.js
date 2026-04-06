@@ -214,14 +214,13 @@ app.post("/api/source", async (req, res) => {
     return { name, currentTitle: cleanedTitle, currentCompany: currentCompany || sourceCompany, linkedinUrl: url, email, snippet, score };
   }
 
-  // Company filter: must be from one of the 8 targets
+  // Company filter: match on parsed company name OR LinkedIn URL only
+  // Never match on snippet — snippet is profile content, not employer
   function isFromTargetCompany(c) {
     const compNorm = (c.currentCompany || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const snipNorm = (c.snippet || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const urlNorm  = c.linkedinUrl.toLowerCase();
     return normTargets.some(t =>
       (compNorm && (compNorm.includes(t) || t.includes(compNorm))) ||
-      snipNorm.includes(t) ||
       urlNorm.includes(t)
     );
   }
