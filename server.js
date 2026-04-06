@@ -146,23 +146,25 @@ app.post("/api/source", async (req, res) => {
 
   // LinkedIn subdomain by location
   const LINKEDIN_SITE = {
-    "United States": "linkedin.com/in",
-    "Canada":        "ca.linkedin.com/in",
-    "India":         "in.linkedin.com/in",
-    "United Kingdom":"uk.linkedin.com/in",
-    "Europe":        "linkedin.com/in",
-    "Australia":     "au.linkedin.com/in",
-    "Singapore":     "sg.linkedin.com/in",
+    "United States": { site:"linkedin.com/in",  loc:"United States" },
+    "Canada":        { site:"ca.linkedin.com/in", loc:"" },
+    "India":         { site:"in.linkedin.com/in", loc:"" },
+    "United Kingdom":{ site:"uk.linkedin.com/in", loc:"" },
+    "Europe":        { site:"linkedin.com/in",  loc:"Europe" },
+    "Australia":     { site:"au.linkedin.com/in", loc:"" },
+    "Singapore":     { site:"sg.linkedin.com/in", loc:"" },
   };
-  const site = LINKEDIN_SITE[location] || "linkedin.com/in";
+  const locConfig = LINKEDIN_SITE[location] || { site:"linkedin.com/in", loc:"" };
+  const site = locConfig.site;
+  const locHint = locConfig.loc ? ` "${locConfig.loc}"` : "";
 
   const queries = targets.flatMap(company => {
-    const q1 = topSkill
-      ? `site:${site} "${company}" "${role}" "${topSkill}"`
-      : `site:${site} "${company}" "${role}"`;
-    const q2 = secondSkill
-      ? `site:${site} "${company}" "${role}" "${secondSkill}"`
-      : `site:${site} "${company}" "${seniority}" "${role}"`;
+    // q1: company + role + location hint
+    const q1 = `site:${site} "${company}" "${role}"${locHint}`;
+    // q2: add skill or seniority as soft hint
+    const q2 = topSkill
+      ? `site:${site} "${company}" "${role}" ${topSkill}${locHint}`
+      : `site:${site} "${company}" "${role}" ${seniority}${locHint}`;
     return [q1, q2];
   });
 
@@ -177,7 +179,11 @@ app.post("/api/source", async (req, res) => {
         }).then(r => r.json()).catch(() => ({ organic: [] }))
       )
     );
-    rawResults = responses.flatMap(r => r.organic || []);
+    // Tag each result with the company that was queried — ground truth, no parsing needed
+    rawResults = responses.flatMap((r, i) => {
+      const queryCompany = targets[Math.floor(i / 2)]; // 2 queries per company
+      return (r.organic || []).map(item => ({ ...item, _queryCompany: queryCompany }));
+    });
     console.log(`[SOURCE] Raw Serper results: ${rawResults.length}`);
   } catch (err) {
     return res.status(500).json({ error: "Serper search failed: " + err.message });
@@ -202,34 +208,27 @@ app.post("/api/source", async (req, res) => {
       .replace(/\s+at\s+.+$/i, "")
       .trim();
 
-    // Company from "at Company" pattern
-    const atMatch = rawTitle.match(/\s+(?:at|@)\s+([^|]+?)(?:\s*\||$)/i);
-    const currentCompany = atMatch ? atMatch[1].trim() : "";
+    // Use the queried company as ground truth — eliminates hallucination
+    const queriedCompany = result._queryCompany || "";
 
     const emailMatch = snippet.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
     const email = emailMatch ? emailMatch[0] : null;
 
-    const sourceCompany = targets.find(c =>
-      url.toLowerCase().includes(c.toLowerCase().replace(/\s+/g, "")) ||
-      snippet.toLowerCase().includes(c.toLowerCase()) ||
-      rawTitle.toLowerCase().includes(c.toLowerCase())
-    ) || currentCompany || "";
-
     const kw = [role, ...(skills || []), seniority || ""].map(k => k.toLowerCase());
-    const fullText = [name, cleanedTitle, currentCompany, snippet].join(" ").toLowerCase();
+    const fullText = [name, cleanedTitle, queriedCompany, snippet].join(" ").toLowerCase();
     const score = kw.reduce((n, k) => n + (k && fullText.includes(k) ? 1 : 0), 0);
 
-    return { name, currentTitle: cleanedTitle, currentCompany: currentCompany || sourceCompany, linkedinUrl: url, email, snippet, score };
+    return { name, currentTitle: cleanedTitle, currentCompany: queriedCompany, linkedinUrl: url, email, snippet, score };
   }
 
-  // Company filter: match on parsed company name OR LinkedIn URL only
-  // Never match on snippet — snippet is profile content, not employer
+  // currentCompany is now always the queried company — filter always passes
+  // Extra safety: also accept if URL contains target company name
   function isFromTargetCompany(c) {
-    const compNorm = (c.currentCompany || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!c.currentCompany) return false;
+    const compNorm = c.currentCompany.toLowerCase().replace(/[^a-z0-9]/g, "");
     const urlNorm  = c.linkedinUrl.toLowerCase();
     return normTargets.some(t =>
-      (compNorm && (compNorm.includes(t) || t.includes(compNorm))) ||
-      urlNorm.includes(t)
+      compNorm.includes(t) || t.includes(compNorm) || urlNorm.includes(t)
     );
   }
 
