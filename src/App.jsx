@@ -287,7 +287,7 @@ function CandidatesTab({ mapData, form }) {
         <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">Searching across</div>
         <div className="flex flex-wrap gap-1.5">
           {targetNames.slice(0,8).map((name,i)=>(
-            <span key={i} className="text-xs px-2.5 py-0.5 rounded-md font-medium bg-card border border-border text-muted-foreground">{name}</span>
+            <span key={i} style={{fontSize:"12px",padding:"3px 10px",borderRadius:"6px",fontWeight:500,background:"#eff2fe",color:"#4d64d8",border:"1px solid #d2d8f8",fontFamily:"Inter,sans-serif"}}>{name}</span>
           ))}
           {targetNames.length>8&&<span className="text-xs text-muted-foreground px-1">+{targetNames.length-8} more</span>}
         </div>
@@ -298,7 +298,8 @@ function CandidatesTab({ mapData, form }) {
       {error && <div className="mb-3 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</div>}
 
       {!sourced && !loading && (
-        <button type="button" onClick={source} className="w-full py-2.5 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary/90 transition-all shadow-card">
+        <button type="button" onClick={source}
+          style={{width:"100%",padding:"11px 16px",borderRadius:"8px",fontSize:"14px",fontWeight:600,color:"#fff",border:"none",cursor:"pointer",background:"#f04e7c",fontFamily:"Inter,sans-serif",boxShadow:"0 4px 12px rgba(240,78,124,0.35)"}}>
           Source Candidates →
         </button>
       )}
@@ -363,10 +364,15 @@ function ResultTabs({ mapData, form }) {
       <div className="flex items-end gap-0 mb-6 border-b border-border">
         {TABS.map(t=>(
           <button key={t.id} type="button" onClick={()=>setActive(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${
-              active===t.id ? "text-primary border-primary" : "text-muted-foreground border-transparent hover:text-foreground"
-            }`}>
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{background:active===t.id?t.dot:"#e2e8f0"}}/>
+            style={{
+              display:"flex",alignItems:"center",gap:"6px",padding:"10px 16px",
+              fontSize:"13px",fontWeight:500,cursor:"pointer",
+              borderBottom: active===t.id ? `2px solid ${t.dot}` : "2px solid transparent",
+              marginBottom:"-1px",color: active===t.id ? t.dot : "#9ca3af",
+              transition:"all .15s",fontFamily:"Inter,sans-serif",background:"none",border:"none",
+              borderBottom: active===t.id ? `2px solid ${t.dot}` : "2px solid transparent",
+            }}>
+            <div style={{width:"7px",height:"7px",borderRadius:"50%",flexShrink:0,background:active===t.id ? t.dot : "#d1d5db"}}/>
             {t.label}
             {t.count && mapData && <span className="ml-1 text-[10px] text-muted-foreground">{t.count(mapData)}</span>}
             {t.isNew && <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-pink-50 border border-pink-200 text-pink-600 font-semibold">NEW</span>}
@@ -720,7 +726,7 @@ export default function TalentMap() {
             <div className="mb-6 pb-5 border-b border-border flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-semibold text-foreground leading-tight">
-                  {form.role.split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")} <span style={{color:"#d1d5db",fontWeight:400}}>·</span> <span style={{color:"#6b7280",fontWeight:400}}>{form.seniority}</span>
+                  {(form.role||"Talent Map").split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")} {form.seniority && <><span style={{color:"#d1d5db",fontWeight:400,margin:"0 4px"}}>·</span><span style={{color:"#6b7280",fontWeight:400}}>{form.seniority}</span></>}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1.5">
                   {[form.company,form.location].filter(Boolean).join(" · ")} · {allNodes.length} nodes mapped
