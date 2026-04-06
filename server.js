@@ -144,17 +144,25 @@ app.post("/api/source", async (req, res) => {
   const topSkill    = skills?.[0] || "";
   const secondSkill = skills?.[1] || "";
 
-  // Simple, proven X-ray query format:
-  // site:linkedin.com/in "Company" "Role" "Skill"
-  // Q1: company + full role title + top skill
-  // Q2: company + role + second skill (broader net)
+  // LinkedIn subdomain by location
+  const LINKEDIN_SITE = {
+    "United States": "linkedin.com/in",
+    "Canada":        "ca.linkedin.com/in",
+    "India":         "in.linkedin.com/in",
+    "United Kingdom":"uk.linkedin.com/in",
+    "Europe":        "linkedin.com/in",
+    "Australia":     "au.linkedin.com/in",
+    "Singapore":     "sg.linkedin.com/in",
+  };
+  const site = LINKEDIN_SITE[location] || "linkedin.com/in";
+
   const queries = targets.flatMap(company => {
     const q1 = topSkill
-      ? `site:linkedin.com/in "${company}" "${role}" "${topSkill}"`
-      : `site:linkedin.com/in "${company}" "${role}"`;
+      ? `site:${site} "${company}" "${role}" "${topSkill}"`
+      : `site:${site} "${company}" "${role}"`;
     const q2 = secondSkill
-      ? `site:linkedin.com/in "${company}" "${role}" "${secondSkill}"`
-      : `site:linkedin.com/in "${company}" "${seniority}" "${role}"`;
+      ? `site:${site} "${company}" "${role}" "${secondSkill}"`
+      : `site:${site} "${company}" "${seniority}" "${role}"`;
     return [q1, q2];
   });
 
