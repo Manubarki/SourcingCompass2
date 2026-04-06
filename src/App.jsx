@@ -32,10 +32,10 @@ function TagInput({ placeholder, tags, onChange }) {
     <div className="w-full min-h-[40px] bg-sidebar-input border border-white/10 rounded-md px-2.5 py-1.5 flex flex-wrap gap-1.5 cursor-text focus-within:border-sidebar-accent/50 transition-colors"
       onClick={() => ref.current?.focus()}>
       {tags.map((t, i) => (
-        <span key={i} className="flex items-center gap-1 bg-tag-bg text-tag-fg text-xs px-2.5 py-0.5 rounded-md font-medium">
+        <span key={i} className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-md font-medium" style={{background:"rgba(29,168,130,0.15)",border:"1px solid rgba(29,168,130,0.35)",color:"#24c9a0"}}>
           {t}
           <button type="button" onClick={e=>{e.stopPropagation();onChange(tags.filter((_,j)=>j!==i))}}
-            className="text-tag-remove/70 hover:text-tag-remove leading-none ml-0.5">×</button>
+            style={{color:"rgba(36,201,160,0.6)",background:"none",border:"none",cursor:"pointer",padding:0,lineHeight:1}} className="leading-none ml-0.5">×</button>
         </span>
       ))}
       <input ref={ref} className="sidebar-input bg-transparent outline-none flex-1 min-w-[80px]"
