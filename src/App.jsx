@@ -552,7 +552,7 @@ export default function TalentMap() {
 
   const inputCls = "sidebar-input w-full rounded-md px-3 py-2 text-sm focus:outline-none transition-colors";
   const inputStyle = {background:"#1e2449",border:"1px solid #2d3461",color:"#bfc8d6"};
-  const labelCls = "block text-xs font-medium mb-1.5 tracking-wide"; const labelStyle = {color:"#8892b0"};
+  const labelCls = ""; const labelStyle = {display:"block",fontSize:"12px",fontWeight:500,color:"#8892b0",marginBottom:"6px",letterSpacing:"0.02em",fontFamily:"Inter,sans-serif"};
 
   return (
     <>
@@ -634,26 +634,25 @@ export default function TalentMap() {
 
           <p style={{fontSize:"11px",color:"#4a5a8a"}}>AI-generated · verify before sourcing</p>
 
-          {error && <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">{error}</div>}
+          {error && <div style={{fontSize:"11px",color:"#f87171",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:"6px",padding:"8px 10px",fontFamily:"Inter,sans-serif"}}>{error}</div>}
 
           {!loading ? (
             <button type="button" onClick={generate}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
-              style={{background:"hsl(var(--primary))",boxShadow:"0 2px 8px hsl(var(--primary) / 0.35)"}}>
+              style={{width:"100%",padding:"11px 16px",borderRadius:"8px",fontSize:"14px",fontWeight:600,color:"white",border:"none",cursor:"pointer",background:"#4d64d8",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",boxShadow:"0 4px 12px rgba(77,100,216,0.4)",fontFamily:"Inter,sans-serif"}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
               </svg>
               Generate Map
             </button>
           ) : (
-            <div className="flex gap-2">
-              <div className="flex-1 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 bg-sidebar-muted text-sidebar-foreground/50">
-                <div className="w-3.5 h-3.5 border-2 border-sidebar-accent border-t-transparent rounded-full" style={{animation:"spin 0.8s linear infinite"}}/>
+            <div style={{display:"flex",gap:"8px"}}>
+              <div style={{flex:1,padding:"11px",borderRadius:"8px",fontSize:"12px",fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",background:"#1e2449",color:"#4a5a8a",fontFamily:"Inter,sans-serif"}}>
+                <div style={{width:"14px",height:"14px",border:"2px solid #24c9a0",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
                 Generating...
               </div>
               <button type="button" onClick={stopGenerate}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive hover:bg-destructive/10 transition-all flex-shrink-0">
-                <div className="w-1.5 h-1.5 rounded-sm bg-destructive"/>Stop
+                style={{display:"flex",alignItems:"center",gap:"6px",padding:"8px 14px",borderRadius:"8px",fontSize:"11px",fontWeight:600,border:"1px solid rgba(239,68,68,0.4)",color:"#f87171",background:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",flexShrink:0}}>
+                <div style={{width:"6px",height:"6px",borderRadius:"2px",background:"#ef4444"}}/>Stop
               </button>
             </div>
           )}
