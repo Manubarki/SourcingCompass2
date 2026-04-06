@@ -64,14 +64,14 @@ function getRelevant(companies, role, skills, industries) {
   return [...rel,...other].map(c=>[c.name,c.sub||c.cat,c.fund].filter(Boolean).join(" | ")).join("\n");
 }
 
-// ─── LiteLLM helper ──────────────────────────────────────────────────────────
-async function callLLM(prompt, maxTokens = 6000) {
-  const response = await fetch("https://llmproxy.atlan.dev/v1/messages", {
+// ─── LLM helpers ─────────────────────────────────────────────────────────────
+async function callEndpoint(url, apiKey, prompt, maxTokens) {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "anthropic-version": "2023-06-01",
-      "x-api-key": process.env.LITELLM_API_KEY,
+      "x-api-key": apiKey,
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
@@ -82,9 +82,44 @@ async function callLLM(prompt, maxTokens = 6000) {
   const rawText = await response.text();
   let data;
   try { data = JSON.parse(rawText); }
-  catch { throw new Error("Non-JSON from proxy: " + rawText.slice(0, 200)); }
+  catch { throw new Error("Non-JSON: " + rawText.slice(0, 200)); }
   if (!response.ok) throw new Error(data?.error?.message || JSON.stringify(data));
   return data.content?.map(b => b.text || "").join("").trim() || "";
+}
+
+// Primary: Atlan LiteLLM proxy — Fallback: Anthropic direct
+async function callLLM(prompt, maxTokens = 6000) {
+  const primaryUrl = "https://llmproxy.atlan.dev/v1/messages";
+  const fallbackUrl = "https://api.anthropic.com/v1/messages";
+
+  // Try primary first
+  if (process.env.LITELLM_API_KEY) {
+    try {
+      console.log("[LLM] Trying primary (LiteLLM proxy)...");
+      const result = await callEndpoint(primaryUrl, process.env.LITELLM_API_KEY, prompt, maxTokens);
+      console.log("[LLM] Primary succeeded.");
+      return result;
+    } catch (err) {
+      console.warn("[LLM] Primary failed:", err.message, "— trying fallback...");
+    }
+  } else {
+    console.warn("[LLM] LITELLM_API_KEY not set — skipping primary.");
+  }
+
+  // Fallback: Anthropic direct
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      console.log("[LLM] Trying fallback (Anthropic direct)...");
+      const result = await callEndpoint(fallbackUrl, process.env.ANTHROPIC_API_KEY, prompt, maxTokens);
+      console.log("[LLM] Fallback succeeded.");
+      return result;
+    } catch (err) {
+      console.error("[LLM] Fallback also failed:", err.message);
+      throw new Error("Both LLM endpoints failed. Last error: " + err.message);
+    }
+  }
+
+  throw new Error("No LLM API key configured. Set LITELLM_API_KEY or ANTHROPIC_API_KEY.");
 }
 
 // ─── Location config ─────────────────────────────────────────────────────────
