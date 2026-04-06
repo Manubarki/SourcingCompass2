@@ -361,21 +361,39 @@ function ResultTabs({ mapData, form }) {
   const nodes = {companies:mapData.companies,adjacent:mapData.adjacent,wildcards:mapData.wildcards,titles:mapData.titles};
   return (
     <div>
-      <div className="flex items-end gap-0 mb-6 border-b border-border">
+      <div style={{display:"flex",alignItems:"flex-end",gap:0,marginBottom:"24px",borderBottom:"1px solid #e5e7eb"}}>
         {TABS.map(t=>(
           <button key={t.id} type="button" onClick={()=>setActive(t.id)}
             style={{
-              display:"flex",alignItems:"center",gap:"6px",padding:"10px 16px",
-              fontSize:"13px",fontWeight:500,cursor:"pointer",
+              display:"flex",alignItems:"center",gap:"6px",
+              padding:"10px 16px",
+              fontSize:"13px",fontWeight: active===t.id ? 600 : 500,
+              cursor:"pointer",
+              color: active===t.id ? "#111827" : "#9ca3af",
               borderBottom: active===t.id ? `2px solid ${t.dot}` : "2px solid transparent",
-              marginBottom:"-1px",color: active===t.id ? t.dot : "#9ca3af",
-              transition:"all .15s",fontFamily:"Inter,sans-serif",background:"none",border:"none",
+              marginBottom:"-1px",
+              transition:"all .15s",fontFamily:"Inter,sans-serif",
+              background:"none",border:"none",
               borderBottom: active===t.id ? `2px solid ${t.dot}` : "2px solid transparent",
+              outline:"none",
             }}>
-            <div style={{width:"7px",height:"7px",borderRadius:"50%",flexShrink:0,background:active===t.id ? t.dot : "#d1d5db"}}/>
+            <div style={{
+              width:"7px",height:"7px",borderRadius:"50%",flexShrink:0,
+              background: active===t.id ? t.dot : "#e5e7eb",
+              boxShadow: active===t.id ? `0 0 0 3px ${t.dot}22` : "none",
+              transition:"all .15s",
+            }}/>
             {t.label}
-            {t.count && mapData && <span className="ml-1 text-[10px] text-muted-foreground">{t.count(mapData)}</span>}
-            {t.isNew && <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-pink-50 border border-pink-200 text-pink-600 font-semibold">NEW</span>}
+            {t.count && mapData && (
+              <span style={{
+                fontSize:"11px",fontWeight:600,
+                color: active===t.id ? t.dot : "#9ca3af",
+                marginLeft:"2px",
+              }}>{t.count(mapData)}</span>
+            )}
+            {t.isNew && (
+              <span style={{fontSize:"9px",padding:"2px 6px",borderRadius:"4px",background:"#fddbe4",border:"1px solid #f894ad",color:"#f34d77",fontWeight:700,marginLeft:"2px"}}>NEW</span>
+            )}
           </button>
         ))}
       </div>
@@ -723,18 +741,20 @@ export default function TalentMap() {
 
         {mapData && !loading && (
           <div className="relative z-10 p-8">
-            <div className="mb-6 pb-5 border-b border-border flex items-start justify-between gap-4">
+            <div style={{marginBottom:"20px",paddingBottom:"18px",borderBottom:"1px solid #e5e7eb",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"16px"}}>
               <div>
-                <h1 className="text-2xl font-semibold text-foreground leading-tight">
-                  {(form.role||"Talent Map").split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")} {form.seniority && <><span style={{color:"#d1d5db",fontWeight:400,margin:"0 4px"}}>·</span><span style={{color:"#6b7280",fontWeight:400}}>{form.seniority}</span></>}
+                <h1 style={{fontSize:"22px",fontWeight:700,color:"#111827",lineHeight:1.2,letterSpacing:"-0.02em",fontFamily:"Inter,sans-serif"}}>
+                  {(form.role||"Talent Map").split(" ").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")}
+                  {form.seniority && <span style={{color:"#9ca3af",fontWeight:400,margin:"0 8px",fontSize:"20px"}}>·</span>}
+                  {form.seniority && <span style={{color:"#9ca3af",fontWeight:400,fontSize:"20px"}}>{form.seniority}</span>}
                 </h1>
-                <p className="text-sm text-muted-foreground mt-1.5">
+                <p style={{fontSize:"13px",color:"#9ca3af",marginTop:"4px",fontFamily:"Inter,sans-serif"}}>
                   {[form.company,form.location].filter(Boolean).join(" · ")} · {allNodes.length} nodes mapped
                 </p>
               </div>
               <button type="button" onClick={exportCSV}
-                className="flex-shrink-0 flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:border-primary hover:text-primary transition-all bg-card shadow-card">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                style={{flexShrink:0,display:"flex",alignItems:"center",gap:"7px",padding:"9px 18px",borderRadius:"8px",fontSize:"13px",fontWeight:600,border:"1.5px solid #4d64d8",color:"#4d64d8",background:"#f5f7ff",cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s",whiteSpace:"nowrap"}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
                 Export CSV
