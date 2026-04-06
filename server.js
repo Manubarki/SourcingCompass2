@@ -150,7 +150,6 @@ app.post("/api/source", async (req, res) => {
     "Canada":        "ca.linkedin.com/in",
     "India":         "in.linkedin.com/in",
     "United Kingdom":"uk.linkedin.com/in",
-    "Europe":        "eu.linkedin.com/in",
     "Australia":     "au.linkedin.com/in",
     "Singapore":     "sg.linkedin.com/in",
   };
