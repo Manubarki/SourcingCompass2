@@ -1,6 +1,41 @@
 import { useState, useRef, useEffect } from "react";
 
-const DOC_CONTEXT = "SourcingCompass is a talent intelligence tool built by Manu Barki at Atlan. Generates Target Companies, Adjacent Talent Pools, Wildcard Bets, Target Titles, and live sourced Candidates via Google X-ray. AI model: Claude Sonnet. Company memory grounded in MAD landscape dataset. Skills input via tags. JD parser auto-fills fields. CSV export available.";
+const DOC_CONTEXT = `SourcingCompass is a talent intelligence tool that answers "where do people like this actually work?" — generating an AI-powered map of the talent landscape for any role in under 30 seconds.
+
+HOW TO USE:
+Fill in Role Title, Hiring Company (excluded from results), Location, Seniority, Must-Have Skills (comma or Enter to add tags), Industries, Exclusions. Optionally paste a JD and click "Parse JD" to auto-fill fields. Click Generate Map.
+
+FOUR RESULT TABS:
+1. Target Companies (blue) — Real companies employing people with your exact skills. Each card shows: Relevance (skill match 0-100), Talent Density (how concentrated talent is there), Poachability (likelihood to move). Stage badge = company lifecycle. Hover card = "Why Relevant" tooltip.
+2. Adjacent Talent Pools (purple) — Companies with transferable skills, not direct competitors. Skill overlap matters, not product similarity. Candidates your competitors aren't sourcing.
+3. Wildcard Bets (orange) — Surprising non-obvious tech companies with strong skill overlap. E.g. gaming company for real-time data engineers. Only tech/software companies, never banks or manufacturers.
+4. Target Titles (green) — Exact job titles as they appear across companies. Use directly in LinkedIn search: title + target company = pre-qualified pool in 2 minutes.
+
+SCORES EXPLAINED:
+- Relevance: 90+ = very close match. 60-70 = good overlap. Below 60 = stretch.
+- High relevance ≠ best target. A 70% relevance + 85% poachability company often beats 95% relevance + 30% poachability.
+- Talent Density: how concentrated relevant talent is. A 50-person AI startup can have higher density than a huge enterprise.
+- Poachability signals: [Confirmed] = specific reported fact (layoffs, markdowns). [Signal] = inferred pattern (slow promotions, equity underwater). Use to tailor outreach angle, not to quote directly.
+
+CANDIDATES TAB (pink):
+Live Google X-ray sourcing via Serper across target companies. Shows real LinkedIn profiles. Always verify before outreach.
+
+JD PARSER:
+Paste any job description → auto-extracts role title, seniority, key skills. Edit tags manually if needed (× to remove, type + Enter to add).
+
+CSV EXPORT:
+Downloads all four sections as a spreadsheet — opens in Excel or Google Sheets.
+
+COMPANY MEMORY:
+Grounded in 2000+ verified ML/AI/Data ecosystem companies from the MAD Firstmark landscape. Significantly reduces hallucinations vs pure AI generation.
+
+TIPS:
+- Add specific skills (e.g. "Apache Iceberg, dbt, Spark") for much better results
+- Use Exclusions for companies already sourced or off-limits
+- Try different seniority levels — Staff vs Senior return different company mixes
+- High poachability + moderate relevance = often the best sourcing target
+
+BUILT BY: Manu Barki, Talent Partner at Atlan. Stack: React + Vite + Express on Railway, Claude Sonnet via LiteLLM proxy.`;
 
 
 
