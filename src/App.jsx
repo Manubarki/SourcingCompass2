@@ -362,47 +362,49 @@ function ResultTabs({ mapData, form }) {
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"24px",flexWrap:"wrap"}}>
-        {TABS.map(t=>(
+        {TABS.map(t=>{
+          const isActive = active===t.id;
+          return (
           <button key={t.id} type="button" onClick={()=>setActive(t.id)}
             style={{
               display:"flex",alignItems:"center",gap:"6px",
               padding:"7px 16px",
-              fontSize:"13px",fontWeight: active===t.id ? 600 : 500,
+              fontSize:"13px",fontWeight: isActive ? 600 : 500,
               cursor:"pointer",
               borderRadius:"999px",
-              color: active===t.id ? "#ffffff" : "#6b7280",
-              background: active===t.id ? t.dot : "#f3f4f6",
-              border: `1.5px solid ${active===t.id ? t.dot : "#e5e7eb"}`,
+              color: isActive ? "#ffffff" : "#6b7280",
+              background: isActive ? t.dot : "#f3f4f6",
+              border: isActive ? `1.5px solid ${t.dot}` : "1.5px solid #e5e7eb",
               outline:"none",
-              boxShadow: active===t.id ? `0 2px 8px ${t.dot}55` : "none",
-              transition:"all .15s",fontFamily:"Inter,sans-serif",
+              boxShadow: isActive ? `0 2px 8px ${t.dot}66` : "none",
+              transition:"background .15s, color .15s, box-shadow .15s",
+              fontFamily:"Inter,sans-serif",
               whiteSpace:"nowrap",
             }}>
             <div style={{
               width:"6px",height:"6px",borderRadius:"50%",flexShrink:0,
-              background: active===t.id ? "rgba(255,255,255,0.75)" : t.dot,
-              transition:"all .15s",
+              background: isActive ? "rgba(255,255,255,0.8)" : t.dot,
             }}/>
             {t.label}
             {t.count && mapData && (
               <span style={{
                 fontSize:"11px",fontWeight:700,
-                color: active===t.id ? "#ffffff" : t.dot,
-                background: active===t.id ? "rgba(255,255,255,0.2)" : `${t.dot}18`,
+                color: isActive ? "#ffffff" : t.dot,
+                background: isActive ? "rgba(255,255,255,0.22)" : t.dot+"18",
                 padding:"1px 6px",borderRadius:"999px",marginLeft:"2px",
               }}>{t.count(mapData)}</span>
             )}
             {t.isNew && (
               <span style={{
                 fontSize:"9px",padding:"2px 6px",borderRadius:"4px",
-                background: active===t.id ? "rgba(255,255,255,0.25)" : "#fddbe4",
-                color: active===t.id ? "#fff" : "#f34d77",
-                border: active===t.id ? "none" : "1px solid #f894ad",
+                background: isActive ? "rgba(255,255,255,0.25)" : "#fddbe4",
+                color: isActive ? "#fff" : "#f34d77",
+                border: isActive ? "none" : "1px solid #f894ad",
                 fontWeight:700,marginLeft:"2px",
               }}>NEW</span>
             )}
           </button>
-        ))}
+        );})}
       </div>
       {active==="candidates"
         ? <CandidatesTab mapData={mapData} form={form}/>
@@ -458,41 +460,75 @@ function Chatbot() {
 
   return (
     <>
+      {/* Floating trigger button — always visible */}
       <button type="button" onClick={()=>setOpen(v=>!v)}
-        className="fixed bottom-5 right-5 z-50 w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-card-hover hover:bg-primary/90 transition-all text-lg font-semibold">
-        {open?"×":"💬"}
+        style={{
+          position:"fixed",bottom:"20px",right:"20px",zIndex:1000,
+          width:"48px",height:"48px",borderRadius:"50%",
+          background: open ? "#374151" : "#4d64d8",
+          border:"none",cursor:"pointer",
+          display:"flex",alignItems:"center",justifyContent:"center",
+          boxShadow:"0 4px 16px rgba(77,100,216,0.45)",
+          transition:"all .2s",fontFamily:"Inter,sans-serif",
+          color:"#ffffff",fontSize:"20px",fontWeight:600,
+        }}>
+        {open ? "×" : "✦"}
       </button>
+
+      {/* Chat panel — positioned above button, won't overlap content */}
       {open && (
-        <div className="fixed bottom-16 right-5 z-50 w-72 bg-card border border-border rounded-xl shadow-card-hover flex flex-col overflow-hidden" style={{height:"400px"}}>
-          <div className="px-4 py-3 border-b border-border flex items-center gap-2.5 bg-secondary/30">
-            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xs font-semibold">C</div>
+        <div style={{
+          position:"fixed",bottom:"78px",right:"20px",zIndex:999,
+          width:"300px",height:"420px",
+          background:"#ffffff",
+          border:"1px solid #e5e7eb",
+          borderRadius:"14px",
+          boxShadow:"0 16px 48px rgba(0,0,0,0.15)",
+          display:"flex",flexDirection:"column",
+          overflow:"hidden",
+          fontFamily:"Inter,sans-serif",
+        }}>
+          {/* Header */}
+          <div style={{padding:"12px 16px",borderBottom:"1px solid #f3f4f6",display:"flex",alignItems:"center",gap:"10px",background:"#fafafa"}}>
+            <div style={{width:"32px",height:"32px",borderRadius:"50%",background:"#4d64d8",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:"12px",fontWeight:700,flexShrink:0}}>C</div>
             <div>
-              <div className="text-sm font-semibold text-foreground">Compass</div>
-              <div className="text-xs text-muted-foreground">{loading?"Thinking...":"SourcingCompass guide"}</div>
+              <div style={{fontSize:"13px",fontWeight:600,color:"#111827"}}>Compass</div>
+              <div style={{fontSize:"11px",color:"#9ca3af"}}>{loading?"Thinking...":"SourcingCompass guide"}</div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
+
+          {/* Messages */}
+          <div style={{flex:1,overflowY:"auto",padding:"12px",display:"flex",flexDirection:"column",gap:"8px"}}>
             {messages.map((m,i)=>(
-              <div key={i} className={m.role==="user"?"flex justify-end":"flex justify-start"}>
-                <div className={`max-w-[82%] rounded-xl px-3 py-2 text-xs leading-relaxed ${m.role==="user"?"bg-primary text-primary-foreground":"bg-secondary text-foreground border border-border"}`}>
+              <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
+                <div style={{
+                  maxWidth:"82%",borderRadius:"12px",padding:"8px 12px",
+                  fontSize:"12px",lineHeight:1.5,
+                  background: m.role==="user" ? "#4d64d8" : "#f3f4f6",
+                  color: m.role==="user" ? "#ffffff" : "#374151",
+                }}>
                   {m.text}
                 </div>
               </div>
             ))}
             {loading && (
-              <div className="flex justify-start">
-                <div className="bg-secondary border border-border rounded-xl px-3 py-2.5 flex gap-1">
-                  {[0,1,2].map(i=><div key={i} className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{animationDelay:i*0.15+"s"}}/>)}
+              <div style={{display:"flex",justifyContent:"flex-start"}}>
+                <div style={{background:"#f3f4f6",borderRadius:"12px",padding:"10px 14px",display:"flex",gap:"4px",alignItems:"center"}}>
+                  {[0,1,2].map(i=><div key={i} className="sc-spinner" style={{width:"6px",height:"6px",borderRadius:"50%",background:"#4d64d8",animation:`bounce ${0.6+i*0.1}s ease-in-out infinite alternate`}}/>)}
                 </div>
               </div>
             )}
             <div ref={bottomRef}/>
           </div>
-          <div className="px-3 py-3 border-t border-border flex gap-2">
-            <input className="flex-1 bg-secondary border border-input rounded-lg px-3 py-1.5 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-all"
-              placeholder="Ask anything..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()}/>
+
+          {/* Input */}
+          <div style={{padding:"10px 12px",borderTop:"1px solid #f3f4f6",display:"flex",gap:"8px",background:"#fafafa"}}>
+            <input
+              style={{flex:1,background:"#ffffff",border:"1px solid #e5e7eb",borderRadius:"8px",padding:"7px 12px",fontSize:"12px",color:"#111827",outline:"none",fontFamily:"Inter,sans-serif"}}
+              placeholder="Ask anything..." value={input}
+              onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()}/>
             <button type="button" onClick={send} disabled={loading||!input.trim()}
-              className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold disabled:opacity-30 transition-all">→</button>
+              style={{padding:"7px 12px",borderRadius:"8px",background:"#4d64d8",color:"#fff",border:"none",cursor:"pointer",fontSize:"12px",fontWeight:600,opacity:loading||!input.trim()?0.3:1,fontFamily:"Inter,sans-serif"}}>→</button>
           </div>
         </div>
       )}
