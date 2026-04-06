@@ -626,7 +626,7 @@ function LoadingScreen() {
 }
 
 // ─── Chatbot ──────────────────────────────────────────────────────────────────
-function Chatbot() {
+function Chatbot({ mapData, form }) {
   const [open,setOpen]=useState(false);
   const [messages,setMessages]=useState([{role:"assistant",text:"Hey! I'm Compass — ask me anything about how this tool works."}]);
   const [input,setInput]=useState("");
@@ -639,8 +639,23 @@ function Chatbot() {
     setInput(""); setMessages(m=>[...m,{role:"user",text:q}]); setLoading(true);
     try {
       const history=messages.map(m=>({role:m.role==="assistant"?"assistant":"user",content:m.text}));
+      // Build live map context so chatbot can explain specific cards
+      let mapContext = "";
+      if (mapData) {
+        const co = (mapData.companies||[]).map(c=>`  - ${c.label} (Relevance:${c.confidence}, Density:${c.talentDensity}, Poachability:${c.poachability}, Stage:${c.stage||"?"}) — ${c.whyRelevant||""} Signals: ${(c.poachabilitySignals||[]).join("; ")}`).join("\n");
+        const adj = (mapData.adjacent||[]).map(c=>`  - ${c.label}: ${c.sub||""}`).join("\n");
+        const wc  = (mapData.wildcards||[]).map(c=>`  - ${c.label}: ${c.sub||""}`).join("\n");
+        const ti  = (mapData.titles||[]).map(t=>`  - ${t.label}`).join("\n");
+        mapContext = `\n\nCURRENT MAP (role: ${form?.role||"?"}, seniority: ${form?.seniority||"?"}, location: ${form?.location||"?"}, skills: ${(form?.skills||[]).join(", ")||"none"}):
+TARGET COMPANIES:\n${co||"  none"}
+ADJACENT POOLS:\n${adj||"  none"}
+WILDCARDS:\n${wc||"  none"}
+TARGET TITLES:\n${ti||"  none"}
+Use this data to give specific, contextual answers about the current map.`;
+      }
+
       const res=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({messages:[{role:"user",content:"You are Compass, a concise guide for SourcingCompass. 2-3 sentences max.\n\nDOCS:\n"+DOC_CONTEXT+"\n\nHistory:\n"+history.map(h=>h.role+": "+h.content).join("\n")+"\n\nQ: "+q}]})});
+        body:JSON.stringify({messages:[{role:"user",content:"You are Compass, an expert guide embedded inside SourcingCompass. Answer in 2-4 sentences. Be specific — reference actual companies, scores, and signals from the current map when relevant.\n\nDOCS:\n"+DOC_CONTEXT+mapContext+"\n\nHistory:\n"+history.map(h=>h.role+": "+h.content).join("\n")+"\n\nQ: "+q}]})});
       const data=await res.json();
       const text=data.content?.map(b=>b.text||"").join("").trim()||"Couldn't get a response.";
       setMessages(m=>[...m,{role:"assistant",text}]);
@@ -998,7 +1013,7 @@ export default function TalentMap() {
         )}
       </div>
 
-      <Chatbot/>
+      <Chatbot mapData={mapData} form={form}/>
     </div>
     </>
   );
