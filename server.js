@@ -65,7 +65,7 @@ function getRelevant(companies, role, skills, industries) {
 }
 
 // ─── LLM helpers ─────────────────────────────────────────────────────────────
-async function callEndpoint(url, apiKey, prompt, maxTokens) {
+async function callEndpoint(url, apiKey, model, prompt, maxTokens) {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -74,7 +74,7 @@ async function callEndpoint(url, apiKey, prompt, maxTokens) {
       "x-api-key": apiKey,
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model,
       messages: [{ role: "user", content: prompt }],
       max_tokens: maxTokens,
     }),
@@ -87,12 +87,15 @@ async function callEndpoint(url, apiKey, prompt, maxTokens) {
   return data.content?.map(b => b.text || "").join("").trim() || "";
 }
 
-// Primary: Atlan LiteLLM proxy — Fallback: Anthropic direct
-async function callLLM(prompt, maxTokens = 8000) {
+// Primary: Atlan LiteLLM proxy (uses dot notation) — Fallback: Anthropic direct (uses hyphen notation)
+const LITELLM_MODEL   = "claude-haiku-4.5";           // LiteLLM alias (dot notation)
+const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";  // Anthropic direct API model ID
+
+async function callLLM(prompt, maxTokens = 6000) {
   if (process.env.LITELLM_API_KEY) {
     try {
-      console.log("[LLM] Trying primary (LiteLLM proxy)...");
-      const result = await callEndpoint("https://llmproxy.atlan.dev/v1/messages", process.env.LITELLM_API_KEY, prompt, maxTokens);
+      console.log("[LLM] Trying primary (LiteLLM proxy) with", LITELLM_MODEL);
+      const result = await callEndpoint("https://llmproxy.atlan.dev/v1/messages", process.env.LITELLM_API_KEY, LITELLM_MODEL, prompt, maxTokens);
       console.log("[LLM] Primary succeeded.");
       return result;
     } catch (err) {
@@ -101,8 +104,8 @@ async function callLLM(prompt, maxTokens = 8000) {
   }
   if (process.env.ANTHROPIC_API_KEY) {
     try {
-      console.log("[LLM] Trying fallback (Anthropic direct)...");
-      const result = await callEndpoint("https://api.anthropic.com/v1/messages", process.env.ANTHROPIC_API_KEY, prompt, maxTokens);
+      console.log("[LLM] Trying fallback (Anthropic direct) with", ANTHROPIC_MODEL);
+      const result = await callEndpoint("https://api.anthropic.com/v1/messages", process.env.ANTHROPIC_API_KEY, ANTHROPIC_MODEL, prompt, maxTokens);
       console.log("[LLM] Fallback succeeded.");
       return result;
     } catch (err) {
@@ -123,51 +126,7 @@ app.post("/api/generate", async (req, res) => {
     const companyList = companies.length > 0
       ? "\n\nVERIFIED COMPANY LIST — only suggest companies from this list:\n" + getRelevant(companies, role, skills, industries)
       : "";
-    const raw = await callLLM(prompt + companyList);
-
-    // Sanitise and validate JSON before sending to client
-    let text = raw;
-    try {
-      // Extract outermost JSON object
-      const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
-      if (s !== -1 && e !== -1) {
-        let clean = raw.slice(s, e + 1);
-        // Remove control chars and problematic Unicode
-        clean = clean.replace(/[\u0000-\u001F\u007F]/g, " ");
-        // Test parse — if it fails, try to fix truncated JSON by closing open structures
-        try {
-          JSON.parse(clean);
-          text = clean;
-        } catch {
-          // Count unclosed brackets and close them
-          let opens = 0, openSquare = 0;
-          for (const ch of clean) {
-            if (ch === "{") opens++;
-            else if (ch === "}") opens--;
-            else if (ch === "[") openSquare++;
-            else if (ch === "]") openSquare--;
-          }
-          // Close any open arrays first, then objects
-          const closing = "]".repeat(Math.max(0, openSquare)) + "}".repeat(Math.max(0, opens));
-          // Remove trailing incomplete property (find last complete key-value pair)
-          const lastComma = clean.lastIndexOf(",");
-          const lastBrace  = clean.lastIndexOf("}");
-          if (lastComma > lastBrace) clean = clean.slice(0, lastComma);
-          clean = clean + closing;
-          try {
-            JSON.parse(clean); // verify
-            text = clean;
-            console.log("[PARSE] Fixed truncated JSON by closing open structures");
-          } catch(e2) {
-            console.warn("[PARSE] Could not repair JSON:", e2.message);
-            text = raw; // send raw and let client handle error
-          }
-        }
-      }
-    } catch(sanitiseErr) {
-      console.warn("[PARSE] Sanitise step failed:", sanitiseErr.message);
-    }
-
+    const text = await callLLM(prompt + companyList);
     res.json({ content: [{ type: "text", text }] });
   } catch(err) {
     res.status(500).json({ error: err.message });
