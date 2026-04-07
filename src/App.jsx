@@ -487,55 +487,98 @@ function XRayTab({ mapData, form }) {
 
   function buildStrings() {
     const strings = [];
-    // Per company + role
+    const allSkills = (form.skills||[]).filter(Boolean);
+    const skillsQ = allSkills.map(s=>`"${s}"`).join(" ");
+    const coList6 = companies.slice(0,6).map(c=>`"${c}"`).join(" OR ");
+    const coList4 = companies.slice(0,4).map(c=>`"${c}"`).join(" OR ");
+
+    // ── TIER 1: Best possible strings — title + all skills + company pool ──────
+    // Most precise: intitle locks to current title, all skills must appear, OR'd across companies
+    titles.slice(0,3).forEach(title => {
+      strings.push({
+        label: title,
+        category: "Target Title",
+        dot: "#1da882",
+        tag: "Most precise",
+        queries: [
+          // intitle + all skills + top companies
+          skillsQ
+            ? `site:${site} intitle:"${title}" ${skillsQ}${locHint}`
+            : `site:${site} intitle:"${title}" (${coList6})${locHint}`,
+          // intitle + companies OR'd (no skill — broader)
+          coList6
+            ? `site:${site} intitle:"${title}" (${coList6})${locHint}`
+            : null,
+        ].filter(Boolean),
+      });
+    });
+
+    // ── TIER 2: Title + single skill — still tight but more results ────────────
+    if (skill1) {
+      titles.slice(0,4).forEach(title => {
+        strings.push({
+          label: `${title} + ${skill1}`,
+          category: "Target Title",
+          dot: "#1da882",
+          tag: "Title + skill",
+          queries: [
+            `site:${site} intitle:"${title}" "${skill1}"${locHint}`,
+            skill2 ? `site:${site} intitle:"${title}" "${skill2}"${locHint}` : null,
+          ].filter(Boolean),
+        });
+      });
+    }
+
+    // ── TIER 3: Company + role + skills — per company ─────────────────────────
     companies.slice(0,6).forEach(co => {
       strings.push({
         label: co,
         category: "Target Company",
         dot: "#4d64d8",
+        tag: "Company search",
         queries: [
+          // Most specific: company + full role + top skill
+          skill1
+            ? `site:${site} "${co}" "${form.role}" "${skill1}"${locHint}`
+            : `site:${site} "${co}" "${form.role}"${locHint}`,
+          // Broader: company + role only
           `site:${site} "${co}" "${form.role}"${locHint}`,
-          skill1 ? `site:${site} "${co}" "${form.role}" ${skill1}${locHint}` : null,
-        ].filter(Boolean),
+        ].filter((q,i,arr) => arr.indexOf(q)===i), // dedupe
       });
     });
-    // Per title across all companies
-    titles.slice(0,5).forEach(title => {
-      const coList = companies.slice(0,4).map(c=>`"${c}"`).join(" OR ");
-      strings.push({
-        label: title,
-        category: "Target Title",
-        dot: "#1da882",
-        queries: [
-          `site:${site} "${title}"${locHint}`,
-          coList ? `site:${site} "${title}" (${coList})${locHint}` : null,
-        ].filter(Boolean),
-      });
-    });
-    // Adjacent pools
+
+    // ── TIER 4: Adjacent + role ────────────────────────────────────────────────
     adjacent.slice(0,4).forEach(co => {
       strings.push({
         label: co,
         category: "Adjacent Pool",
         dot: "#9b6ef5",
+        tag: "Adjacent",
         queries: [
-          `site:${site} "${co}" "${form.role}"${locHint}`,
-          skill1 ? `site:${site} "${co}" ${skill1} ${form.seniority}${locHint}` : null,
+          skill1
+            ? `site:${site} "${co}" "${form.role}" "${skill1}"${locHint}`
+            : `site:${site} "${co}" "${form.role}"${locHint}`,
+          `site:${site} "${co}" "${form.seniority}"${locHint}`,
         ].filter(Boolean),
       });
     });
-    // Wildcard
+
+    // ── TIER 5: Wildcards ──────────────────────────────────────────────────────
     wildcards.slice(0,3).forEach(co => {
       strings.push({
         label: co,
         category: "Wildcard",
         dot: "#f6720d",
+        tag: "Wildcard",
         queries: [
-          `site:${site} "${co}" ${form.seniority} engineer${locHint}`,
-          skill1 ? `site:${site} "${co}" ${skill1}${locHint}` : null,
-        ].filter(Boolean),
+          skill1
+            ? `site:${site} "${co}" "${skill1}" "${form.seniority}"${locHint}`
+            : `site:${site} "${co}" "${form.role}"${locHint}`,
+          `site:${site} "${co}" "${form.role}"${locHint}`,
+        ].filter((q,i,arr) => arr.indexOf(q)===i),
       });
     });
+
     return strings;
   }
 
@@ -575,9 +618,10 @@ function XRayTab({ mapData, form }) {
           const col = CAT_COLORS[group.category] || CAT_COLORS["Target Company"];
           return (
             <div key={gi} style={{background:"#ffffff",border:"1px solid #e5e7eb",borderRadius:"10px",padding:"14px",borderLeft:`3px solid ${group.dot}`}}>
-              <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px",flexWrap:"wrap"}}>
                 <span style={{fontSize:"13px",fontWeight:700,color:"#111827",fontFamily:"Inter,sans-serif"}}>{group.label}</span>
                 <span style={{fontSize:"10px",padding:"2px 8px",borderRadius:"4px",fontWeight:600,background:col.bg,color:col.text,border:`1px solid ${col.border}`,fontFamily:"Inter,sans-serif"}}>{group.category}</span>
+                {group.tag && <span style={{fontSize:"10px",padding:"2px 8px",borderRadius:"4px",fontWeight:500,background:"#f3f4f6",color:"#6b7280",border:"1px solid #e5e7eb",fontFamily:"Inter,sans-serif"}}>{group.tag}</span>}
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:"7px"}}>
                 {group.queries.map((q, qi) => (
