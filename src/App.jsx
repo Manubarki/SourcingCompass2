@@ -487,49 +487,43 @@ function XRayTab({ mapData, form }) {
 
   function buildStrings() {
     const strings = [];
-    const allSkills = (form.skills||[]).filter(Boolean);
-    const skillsQ = allSkills.map(s=>`"${s}"`).join(" ");
-    const coList6 = companies.slice(0,6).map(c=>`"${c}"`).join(" OR ");
-    const coList4 = companies.slice(0,4).map(c=>`"${c}"`).join(" OR ");
+    const coList = companies.slice(0,5).map(c=>`"${c}"`).join(" OR ");
 
-    // ── TIER 1: Best possible strings — title + all skills + company pool ──────
-    // Most precise: intitle locks to current title, all skills must appear, OR'd across companies
-    titles.slice(0,3).forEach(title => {
+    // ── TIER 1: Title + companies OR pool — best signal, still broad enough ────
+    titles.slice(0,4).forEach(title => {
       strings.push({
         label: title,
         category: "Target Title",
         dot: "#1da882",
         tag: "Most precise",
         queries: [
-          // intitle + all skills + top companies
-          skillsQ
-            ? `site:${site} intitle:"${title}" ${skillsQ}${locHint}`
-            : `site:${site} intitle:"${title}" (${coList6})${locHint}`,
-          // intitle + companies OR'd (no skill — broader)
-          coList6
-            ? `site:${site} intitle:"${title}" (${coList6})${locHint}`
+          // Title across all top companies — one search covers the whole pool
+          coList
+            ? `site:${site} "${title}" (${coList})${locHint}`
+            : `site:${site} "${title}"${locHint}`,
+          // Title + top skill — more refined
+          skill1
+            ? `site:${site} "${title}" "${skill1}"${locHint}`
             : null,
         ].filter(Boolean),
       });
     });
 
-    // ── TIER 2: Title + single skill — still tight but more results ────────────
-    if (skill1) {
-      titles.slice(0,4).forEach(title => {
-        strings.push({
-          label: `${title} + ${skill1}`,
-          category: "Target Title",
-          dot: "#1da882",
-          tag: "Title + skill",
-          queries: [
-            `site:${site} intitle:"${title}" "${skill1}"${locHint}`,
-            skill2 ? `site:${site} intitle:"${title}" "${skill2}"${locHint}` : null,
-          ].filter(Boolean),
-        });
+    // ── TIER 2: Title + skill (without company constraint) ─────────────────────
+    if (skill1 && titles.length) {
+      strings.push({
+        label: `${form.role} + ${skill1}`,
+        category: "Target Title",
+        dot: "#1da882",
+        tag: "Role + skill",
+        queries: [
+          `site:${site} "${form.role}" "${skill1}"${locHint}`,
+          skill2 ? `site:${site} "${form.role}" "${skill2}"${locHint}` : null,
+        ].filter(Boolean),
       });
     }
 
-    // ── TIER 3: Company + role + skills — per company ─────────────────────────
+    // ── TIER 3: Per company — role only, then role + skill ─────────────────────
     companies.slice(0,6).forEach(co => {
       strings.push({
         label: co,
@@ -537,17 +531,15 @@ function XRayTab({ mapData, form }) {
         dot: "#4d64d8",
         tag: "Company search",
         queries: [
-          // Most specific: company + full role + top skill
-          skill1
-            ? `site:${site} "${co}" "${form.role}" "${skill1}"${locHint}`
-            : `site:${site} "${co}" "${form.role}"${locHint}`,
-          // Broader: company + role only
           `site:${site} "${co}" "${form.role}"${locHint}`,
-        ].filter((q,i,arr) => arr.indexOf(q)===i), // dedupe
+          skill1
+            ? `site:${site} "${co}" "${form.role}" ${skill1}${locHint}`
+            : null,
+        ].filter(Boolean),
       });
     });
 
-    // ── TIER 4: Adjacent + role ────────────────────────────────────────────────
+    // ── TIER 4: Adjacent ───────────────────────────────────────────────────────
     adjacent.slice(0,4).forEach(co => {
       strings.push({
         label: co,
@@ -555,10 +547,8 @@ function XRayTab({ mapData, form }) {
         dot: "#9b6ef5",
         tag: "Adjacent",
         queries: [
-          skill1
-            ? `site:${site} "${co}" "${form.role}" "${skill1}"${locHint}`
-            : `site:${site} "${co}" "${form.role}"${locHint}`,
-          `site:${site} "${co}" "${form.seniority}"${locHint}`,
+          `site:${site} "${co}" "${form.role}"${locHint}`,
+          skill1 ? `site:${site} "${co}" ${skill1} ${form.seniority}${locHint}` : null,
         ].filter(Boolean),
       });
     });
@@ -571,11 +561,9 @@ function XRayTab({ mapData, form }) {
         dot: "#f6720d",
         tag: "Wildcard",
         queries: [
-          skill1
-            ? `site:${site} "${co}" "${skill1}" "${form.seniority}"${locHint}`
-            : `site:${site} "${co}" "${form.role}"${locHint}`,
           `site:${site} "${co}" "${form.role}"${locHint}`,
-        ].filter((q,i,arr) => arr.indexOf(q)===i),
+          skill1 ? `site:${site} "${co}" ${skill1}${locHint}` : null,
+        ].filter(Boolean),
       });
     });
 
@@ -909,21 +897,25 @@ Use this data to give specific, contextual answers about the current map.`;
 // ─── Prompt builder ───────────────────────────────────────────────────────────
 function buildPrompt(form) {
   return [
-    "You are a talent intelligence system. Return JSON only. No markdown, no backticks, no explanation.",
-    "Role:"+form.role+" | Company:"+form.company+" | Location:"+form.location+" | Seniority:"+form.seniority+" | Skills:"+form.skills.join(","),
-    "Industries:"+(form.industries.join(",")||"Any")+" | Exclude:"+(form.exclusions.join(",")||"None"),
+    "You are a talent intelligence system. Return structured JSON only. No markdown, no backticks, no explanation.",
+    "CRITICAL: Every company must be real and active. NOT a community, foundation, alumni group, or research lab.",
+    "Role: "+form.role+" | Hiring Company: "+form.company+" | Location: "+form.location+" | Seniority: "+form.seniority+" | Skills: "+form.skills.join(", "),
+    "Industries: "+(form.industries.join(", ")||"Any")+" | Exclusions: "+(form.exclusions.join(", ")||"None"),
     "",
-    "RULES:",
-    "companies: 6 real active companies where this role exists. From the verified list provided. Scores 0-100.",
-    "adjacent: 4 real COMPANIES (not foundations, communities, alumni groups) with transferable skills. One step removed.",
-    "wildcards: 3 real COMPANIES that genuinely surprise — not Airbnb/Netflix/Uber/Meta/Google/Amazon/Apple/Microsoft. Must pass the test: would a junior recruiter be surprised? Gaming, fintech infra, dev tools are good wildcard categories.",
-    "titles: 5 exact LinkedIn job title strings.",
-    "poachabilitySignals: exactly 2 signals per company, each under 10 words, prefixed [Confirmed] or [Signal].",
-    "likelyProfile and whyRelevant: under 12 words each.",
+    "DEFINITIONS:",
+    "companies = 6 real companies from the verified list where people with this exact role work now. Score each on confidence (skill match 0-100), talentDensity (how concentrated the talent is 0-100), poachability (likelihood to move 0-100).",
+    "adjacent = 4 real COMPANIES with transferable skills — one step removed. Not foundations, communities, or alumni groups. Example for data catalog: BI tool companies like Tableau, Looker.",
+    "wildcards = 3 real COMPANIES that genuinely surprise a recruiter — NOT Airbnb/Netflix/Uber/Meta/Google/Amazon/Apple/Microsoft/Stripe. Use gaming, fintech infra, dev tools, or other non-obvious categories.",
+    "titles = 5 exact job title strings as they appear on real LinkedIn profiles.",
     "",
-    'Return this exact JSON structure (no extra fields):',
-    '{"companies":[{"id":"c1","label":"Name","sub":"Industry","tags":["t1","t2"],"confidence":85,"stage":"Series B","talentDensity":78,"poachability":65,"likelyProfile":"Short profile sentence","poachabilitySignals":["[Confirmed] Fact under 10 words","[Signal] Inferred pattern"],"whyRelevant":"Short reason"}],"adjacent":[{"id":"a1","label":"Name","sub":"Why","tags":["t"]}],"wildcards":[{"id":"w1","label":"Name","sub":"Surprise reason","tags":["t"]}],"titles":[{"id":"t1","label":"Exact Title","confidence":85}]}',
-    "Return ONLY raw valid JSON. No text before or after.",
+    "For poachabilitySignals: 2-3 signals per company prefixed with [Confirmed] (specific reported facts like layoffs or markdowns) or [Signal] (inferred patterns like slow promotions or equity issues). One sentence each.",
+    "For likelyProfile: 1-2 sentences describing the typical background of someone in this role at this company.",
+    "For whyRelevant: 1 sentence explaining why this company is a good sourcing target for this specific role.",
+    "For sub in adjacent/wildcards: 1-2 sentences explaining the skill overlap.",
+    "",
+    'Return this JSON structure:',
+    '{"companies":[{"id":"c1","label":"Snowflake","sub":"Cloud Data Platform","tags":["data-lake","cloud"],"confidence":92,"stage":"Public","talentDensity":88,"poachability":72,"likelyProfile":"Staff engineers building distributed query engines and data pipeline infrastructure at petabyte scale.","poachabilitySignals":["[Confirmed] Announced 20% headcount reduction in Q4 2024.","[Signal] Slower career progression reported at senior IC levels post-IPO."],"whyRelevant":"Core product is a data platform — engineers work on identical problems to this role."}],"adjacent":[{"id":"a1","label":"Tableau","sub":"BI engineers understand data modelling and query optimisation — skills transfer directly to a data catalog role.","tags":["bi","visualisation"]}],"wildcards":[{"id":"w1","label":"Riot Games","sub":"Handles 1B+ game events per day using Kafka and Flink — same real-time data infrastructure problems, far less competed for.","tags":["gaming","real-time"]}],"titles":[{"id":"t1","label":"Staff Data Engineer","confidence":90}]}',
+    "Return ONLY raw valid JSON. No text before or after the JSON object.",
   ].join("\n");
 }
 
