@@ -909,23 +909,21 @@ Use this data to give specific, contextual answers about the current map.`;
 // ─── Prompt builder ───────────────────────────────────────────────────────────
 function buildPrompt(form) {
   return [
-    "You are a talent intelligence system. Return a structured talent map as JSON only. No markdown, no explanation, no backticks.",
-    "CRITICAL: Every company MUST be real, active, and a real company — NOT a community, alumni group, newsletter, open source foundation, research lab, or academic institution.",
-    "Location: "+(form.location||"not specified")+". Only suggest companies with actual presence there.",
-    "Role: "+form.role,"Hiring Company: "+form.company,"Location: "+form.location,
-    "Seniority: "+form.seniority,"Skills: "+form.skills.join(", "),
-    "Preferred Industries: "+(form.industries.join(", ")||"Any"),
-    "Exclusions: "+(form.exclusions.join(", ")||"None"),
+    "You are a talent intelligence system. Return JSON only. No markdown, no backticks, no explanation.",
+    "Role:"+form.role+" | Company:"+form.company+" | Location:"+form.location+" | Seniority:"+form.seniority+" | Skills:"+form.skills.join(","),
+    "Industries:"+(form.industries.join(",")||"Any")+" | Exclude:"+(form.exclusions.join(",")||"None"),
     "",
-    "DEFINITIONS — follow these exactly:",
-    "companies = 6-8 DIRECT competitor companies where people with this exact role and skills work RIGHT NOW. Real companies only.",
-    "adjacent = 4-5 real COMPANIES (not communities, not foundations, not alumni groups) whose employees have transferable skills — one step removed. Example: hiring a data catalog engineer? Adjacent = BI tool companies like Tableau, Looker, Mode. NOT 'Apache Foundation' or 'AMPLab Alumni'.",
-    "wildcards = 3-4 real COMPANIES that are GENUINELY SURPRISING — companies a recruiter would never think of. BANNED from wildcards: Airbnb, Netflix, Uber, Meta, Google, Amazon, Apple, Microsoft, Stripe, Twitter/X — these are too obvious. A wildcard requires a specific non-obvious insight. Examples: hiring data platform engineers? Think Riot Games (1B+ game events/day = same Kafka/Flink problems), Figma (multiplayer sync = distributed state at scale), Robinhood (real-time trade pipelines), Cloudflare (edge data processing). The test: would a junior recruiter be surprised by this pick? If not, it is NOT a wildcard.",
-    "titles = 5-7 exact job title strings as they appear on real LinkedIn profiles and job postings.",
+    "RULES:",
+    "companies: 6 real active companies where this role exists. From the verified list provided. Scores 0-100.",
+    "adjacent: 4 real COMPANIES (not foundations, communities, alumni groups) with transferable skills. One step removed.",
+    "wildcards: 3 real COMPANIES that genuinely surprise — not Airbnb/Netflix/Uber/Meta/Google/Amazon/Apple/Microsoft. Must pass the test: would a junior recruiter be surprised? Gaming, fintech infra, dev tools are good wildcard categories.",
+    "titles: 5 exact LinkedIn job title strings.",
+    "poachabilitySignals: exactly 2 signals per company, each under 10 words, prefixed [Confirmed] or [Signal].",
+    "likelyProfile and whyRelevant: under 12 words each.",
     "",
-    'Return: {"companies":[{"id":"c1","label":"Name","sub":"Industry","tags":["t"],"confidence":85,"stage":"Series B","talentDensity":78,"poachability":65,"likelyProfile":"sentence.","poachabilitySignals":["[Confirmed] Specific reported fact here","[Signal] Inferred pattern here"],"whyRelevant":"sentence."}],"adjacent":[{"id":"a1","label":"Company Name","sub":"Why skills transfer","tags":["t"]}],"wildcards":[{"id":"w1","label":"Company Name","sub":"Why surprising overlap","tags":["t"]}],"titles":[{"id":"t1","label":"Exact Job Title","sub":"Companies using this title","tags":["t"],"confidence":90}]}',
-    "CRITICAL: adjacent and wildcards must be REAL COMPANIES you can find on LinkedIn — not open source projects, research labs, alumni groups, newsletters, or communities. Return ONLY raw valid JSON.",
-    "CRITICAL for poachabilitySignals: every signal MUST start with [Confirmed] (widely reported facts: layoffs, acquisitions, markdowns) or [Signal] (inferred: slow promotions, equity lock-up, burnout). Example: \"[Confirmed] Laid off 20% in Q3 2024\" or \"[Signal] Slow promotion cycles at senior levels\".",
+    'Return this exact JSON structure (no extra fields):',
+    '{"companies":[{"id":"c1","label":"Name","sub":"Industry","tags":["t1","t2"],"confidence":85,"stage":"Series B","talentDensity":78,"poachability":65,"likelyProfile":"Short profile sentence","poachabilitySignals":["[Confirmed] Fact under 10 words","[Signal] Inferred pattern"],"whyRelevant":"Short reason"}],"adjacent":[{"id":"a1","label":"Name","sub":"Why","tags":["t"]}],"wildcards":[{"id":"w1","label":"Name","sub":"Surprise reason","tags":["t"]}],"titles":[{"id":"t1","label":"Exact Title","confidence":85}]}',
+    "Return ONLY raw valid JSON. No text before or after.",
   ].join("\n");
 }
 
