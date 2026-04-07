@@ -148,13 +148,34 @@ function CompanyCard({ node }) {
       )}
       {node.poachabilitySignals?.length > 0 && (
         <div style={{marginTop:"10px",paddingTop:"10px",borderTop:"1px solid #f3f4f6"}}>
-          <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"6px",fontFamily:"Inter,sans-serif"}}>Signals</div>
-          {node.poachabilitySignals.map((sig,i)=>(
-            <div key={i} style={{display:"flex",gap:"8px",marginTop:"4px"}}>
-              <span style={{color:"#d1d5db",fontSize:"12px",flexShrink:0}}>›</span>
-              <span style={{fontSize:"12px",color:"#6b7280",lineHeight:1.4,fontFamily:"Inter,sans-serif"}}>{sig}</span>
-            </div>
-          ))}
+          <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"8px",fontFamily:"Inter,sans-serif"}}>Poachability Signals</div>
+          {node.poachabilitySignals.map((sig,i)=>{
+            const isConfirmed = sig.toLowerCase().startsWith("[confirmed]");
+            const isSignal    = sig.toLowerCase().startsWith("[signal]");
+            const text = sig.replace(/^\[(confirmed|signal)\]\s*/i,"").trim();
+            return (
+              <div key={i} style={{display:"flex",alignItems:"flex-start",gap:"7px",marginTop:"6px"}}>
+                {isConfirmed && (
+                  <span style={{
+                    fontSize:"10px",fontWeight:700,padding:"1px 6px",borderRadius:"4px",
+                    background:"#dcfce7",color:"#15803d",border:"1px solid #bbf7d0",
+                    flexShrink:0,whiteSpace:"nowrap",marginTop:"1px",fontFamily:"Inter,sans-serif",
+                  }}>✓ Confirmed</span>
+                )}
+                {isSignal && (
+                  <span style={{
+                    fontSize:"10px",fontWeight:700,padding:"1px 6px",borderRadius:"4px",
+                    background:"#fef3c7",color:"#92400e",border:"1px solid #fde68a",
+                    flexShrink:0,whiteSpace:"nowrap",marginTop:"1px",fontFamily:"Inter,sans-serif",
+                  }}>~ Inferred</span>
+                )}
+                {!isConfirmed && !isSignal && (
+                  <span style={{color:"#d1d5db",fontSize:"12px",flexShrink:0,marginTop:"1px"}}>›</span>
+                )}
+                <span style={{fontSize:"12px",color:"#6b7280",lineHeight:1.4,fontFamily:"Inter,sans-serif"}}>{text}</span>
+              </div>
+            );
+          })}
         </div>
       )}
       {node.whyRelevant && hov && (
@@ -759,7 +780,7 @@ function buildPrompt(form) {
     "Exclusions: "+(form.exclusions.join(", ")||"None"),
     "",
     'Return: {"companies":[{"id":"c1","label":"Name","sub":"Industry","tags":["t"],"confidence":85,"stage":"Series B","talentDensity":78,"poachability":65,"likelyProfile":"sentence.","poachabilitySignals":["[Signal] x"],"whyRelevant":"sentence."}],"adjacent":[{"id":"a1","label":"Name","sub":"Why","tags":["t"]}],"wildcards":[{"id":"w1","label":"Name","sub":"Reason","tags":["t"]}],"titles":[{"id":"t1","label":"Title","sub":"Companies","tags":["t"],"confidence":90}]}',
-    "Rules: 6-8 companies, NEVER include "+form.company+". Keep ALL string values SHORT (under 15 words). No apostrophes, quotes, or special characters inside strings. adjacent=4-5 companies, wildcards=3-4 TECH companies, titles=5-7 exact job titles. CRITICAL: Return ONLY complete valid JSON — do not truncate.",
+    "Rules: 6-8 companies, NEVER include "+form.company+", adjacent=4-5 companies, wildcards=3-4 TECH companies, titles=5-7 exact job titles, Return ONLY raw valid JSON.",
   ].join("\n");
 }
 
@@ -810,11 +831,8 @@ export default function TalentMap() {
       const data=await res.json();
       const raw=data.content?.map(b=>b.text||"").join("").trim();
       let clean=raw.replace(/```json|```/g,"").trim();
-      const st=clean.indexOf("{"); const lb=clean.lastIndexOf("}");
-      if(st!==-1&&lb!==-1) clean=clean.slice(st,lb+1);
-      let parsed;
-      try { parsed=JSON.parse(clean); }
-      catch { parsed=JSON.parse(clean.replace(/[\u0000-\u001F]/g," ")); }
+      const lb=clean.lastIndexOf("}"); if(lb!==-1) clean=clean.slice(0,lb+1);
+      const parsed=JSON.parse(clean);
       setForm(f=>({...f,role:parsed.role||f.role,seniority:parsed.seniority||f.seniority,skills:parsed.skills?.length?parsed.skills:f.skills}));
       setShowJD(false);
     } catch(e){setError("JD parse failed: "+e.message);}
@@ -835,26 +853,7 @@ export default function TalentMap() {
       const data=await res.json();
       if(!res.ok){setError("API error "+res.status+": "+JSON.stringify(data));setLoading(false);return;}
       const raw=data.content?.map(b=>b.text||"").join("").trim();
-      // Robust JSON parser — handles apostrophes, stray quotes, truncation
-      let clean = raw.replace(/```json|```/g,"").trim();
-      // Find outermost JSON object
-      const start = clean.indexOf("{");
-      const end = clean.lastIndexOf("}");
-      if (start !== -1 && end !== -1) clean = clean.slice(start, end+1);
-      let parsed;
-      try {
-        parsed = JSON.parse(clean);
-      } catch(parseErr) {
-        // Try fixing common issues: unescaped apostrophes in values
-        const fixed = clean
-          .replace(/([^\\])'(?=[^,:\[\]{}"]*[,:\[\]{}"\n])/g, "$1\'")  // escape apostrophes inside strings
-          .replace(/[\u0000-\u001F]/g, " ");  // strip control characters
-        try {
-          parsed = JSON.parse(fixed);
-        } catch {
-          throw new Error("JSON parse failed: " + parseErr.message + " — raw: " + clean.slice(0,200));
-        }
-      }
+      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
       setMapData({...EMPTY,...parsed}); setGenerated(true);
     } catch(e){if(e.name!=="AbortError")setError("Error: "+e.message);}
     setLoading(false);
