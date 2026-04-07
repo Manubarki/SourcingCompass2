@@ -184,7 +184,7 @@ app.post("/api/source", async (req, res) => {
         fetch("https://google.serper.dev/search", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-API-KEY": SERPER_KEY },
-          body: JSON.stringify({ q, num: 5 }),
+          body: JSON.stringify({ q, num: 10 }),
         }).then(r => r.json()).catch(() => ({ organic: [] }))
       )
     );
@@ -250,16 +250,24 @@ app.post("/api/source", async (req, res) => {
 
   function isTitleRelevant(c) {
     const title = (c.currentTitle || "").toLowerCase();
-    if (!title) return true; // no title parsed — give benefit of doubt
-    // At least one meaningful word from the role must appear in their title
-    return roleKeywords.some(word => title.includes(word));
+    if (!title || title.length < 5) return true; // no/short title = benefit of doubt
+    if (title.length > 80) return true; // very long = likely badly parsed, skip filter
+    // At least one meaningful word from the role must appear in title or snippet
+    const fullText = [title, (c.snippet||"").toLowerCase().slice(0,200)].join(" ");
+    return roleKeywords.some(word => fullText.includes(word));
   }
 
   // Post-filter: snippet or title must contain at least one must-have skill
   function hasRequiredSkill(c) {
     if (!mustSkills.length) return true;
     const text = [c.currentTitle, c.snippet].join(" ").toLowerCase();
-    return mustSkills.some(skill => text.includes(skill.toLowerCase()));
+    return mustSkills.some(skill => {
+      const s = skill.toLowerCase();
+      // Exact phrase match OR all individual words present (handles "data platform" -> "data" + "platform")
+      if (text.includes(s)) return true;
+      const words = s.split(/\s+/).filter(w => w.length > 3);
+      return words.length > 1 && words.every(w => text.includes(w));
+    });
   }
 
   const seen = new Set();
