@@ -491,19 +491,20 @@ function XRayTab({ mapData, form }) {
 
     // ── TIER 1: Title + companies OR pool — best signal, still broad enough ────
     titles.slice(0,4).forEach(title => {
+      // Titles with OR are already formatted as: "Staff Engineer" OR "Principal Engineer"
+      const isOR = title.includes(" OR ");
+      const titleQ = isOR ? `(${title})` : `"${title}"`;
       strings.push({
         label: title,
         category: "Target Title",
         dot: "#1da882",
         tag: "Most precise",
         queries: [
-          // Title across all top companies — one search covers the whole pool
           coList
-            ? `site:${site} "${title}" (${coList})${locHint}`
-            : `site:${site} "${title}"${locHint}`,
-          // Title + top skill — more refined
+            ? `site:${site} ${titleQ} (${coList})${locHint}`
+            : `site:${site} ${titleQ}${locHint}`,
           skill1
-            ? `site:${site} "${title}" "${skill1}"${locHint}`
+            ? `site:${site} ${titleQ} "${skill1}"${locHint}`
             : null,
         ].filter(Boolean),
       });
@@ -511,14 +512,15 @@ function XRayTab({ mapData, form }) {
 
     // ── TIER 2: Title + skill (without company constraint) ─────────────────────
     if (skill1 && titles.length) {
+      const roleQ = form.role.includes(" OR ") ? `(${form.role})` : `"${form.role}"`;
       strings.push({
         label: `${form.role} + ${skill1}`,
         category: "Target Title",
         dot: "#1da882",
         tag: "Role + skill",
         queries: [
-          `site:${site} "${form.role}" "${skill1}"${locHint}`,
-          skill2 ? `site:${site} "${form.role}" "${skill2}"${locHint}` : null,
+          `site:${site} ${roleQ} "${skill1}"${locHint}`,
+          skill2 ? `site:${site} ${roleQ} "${skill2}"${locHint}` : null,
         ].filter(Boolean),
       });
     }
@@ -898,24 +900,23 @@ Use this data to give specific, contextual answers about the current map.`;
 function buildPrompt(form) {
   return [
     "You are a talent intelligence system. Return structured JSON only. No markdown, no backticks, no explanation.",
-    "CRITICAL: Every company must be real and active. NOT a community, foundation, alumni group, or research lab.",
     "Role: "+form.role+" | Hiring Company: "+form.company+" | Location: "+form.location+" | Seniority: "+form.seniority+" | Skills: "+form.skills.join(", "),
     "Industries: "+(form.industries.join(", ")||"Any")+" | Exclusions: "+(form.exclusions.join(", ")||"None"),
     "",
-    "DEFINITIONS:",
-    "companies = 6 real companies from the verified list where people with this exact role work now. Score each on confidence (skill match 0-100), talentDensity (how concentrated the talent is 0-100), poachability (likelihood to move 0-100).",
-    "adjacent = 4 real COMPANIES with transferable skills — one step removed. Not foundations, communities, or alumni groups. Example for data catalog: BI tool companies like Tableau, Looker.",
-    "wildcards = 3 real COMPANIES that genuinely surprise a recruiter — NOT Airbnb/Netflix/Uber/Meta/Google/Amazon/Apple/Microsoft/Stripe. Use gaming, fintech infra, dev tools, or other non-obvious categories.",
-    "titles = 5 exact job title strings as they appear on real LinkedIn profiles.",
+    "CRITICAL RULES:",
+    "1. companies — ONLY use company names that appear in the VERIFIED COMPANY LIST below. Do NOT invent company names. Do NOT use open source projects, frameworks, or tools (Apache Kafka, Spark, dbt are tools NOT companies). Pick 6 companies.",
+    "2. adjacent — 4 real hireable companies with transferable skills. Must be real companies people work at, not foundations or communities.",
+    "3. wildcards — 3 real companies a recruiter would never think of. BANNED: Airbnb, Netflix, Uber, Meta, Google, Amazon, Apple, Microsoft, Stripe. Think gaming, fintech infra, developer tools.",
+    "4. titles — 5 short clean job titles ONLY. No qualifiers, departments, or suffixes. Good single titles: 'Staff Engineer', 'Principal Engineer'. To combine levels, wrap each title in double quotes with OR between them — exactly like this: '\"Staff Engineer\" OR \"Principal Engineer\"', '\"Staff Data Engineer\" OR \"Principal Data Engineer\"'.",
     "",
-    "For poachabilitySignals: 2-3 signals per company prefixed with [Confirmed] (specific reported facts like layoffs or markdowns) or [Signal] (inferred patterns like slow promotions or equity issues). One sentence each.",
-    "For likelyProfile: 1-2 sentences describing the typical background of someone in this role at this company.",
-    "For whyRelevant: 1 sentence explaining why this company is a good sourcing target for this specific role.",
-    "For sub in adjacent/wildcards: 1-2 sentences explaining the skill overlap.",
+    "For poachabilitySignals: 2-3 signals prefixed [Confirmed] or [Signal]. One clear sentence each.",
+    "For likelyProfile: 1-2 sentences on who works there in this role.",
+    "For whyRelevant: 1 sentence on why good sourcing target.",
+    "For sub in adjacent/wildcards: 1-2 sentences on skill overlap.",
     "",
     'Return this JSON structure:',
-    '{"companies":[{"id":"c1","label":"Snowflake","sub":"Cloud Data Platform","tags":["data-lake","cloud"],"confidence":92,"stage":"Public","talentDensity":88,"poachability":72,"likelyProfile":"Staff engineers building distributed query engines and data pipeline infrastructure at petabyte scale.","poachabilitySignals":["[Confirmed] Announced 20% headcount reduction in Q4 2024.","[Signal] Slower career progression reported at senior IC levels post-IPO."],"whyRelevant":"Core product is a data platform — engineers work on identical problems to this role."}],"adjacent":[{"id":"a1","label":"Tableau","sub":"BI engineers understand data modelling and query optimisation — skills transfer directly to a data catalog role.","tags":["bi","visualisation"]}],"wildcards":[{"id":"w1","label":"Riot Games","sub":"Handles 1B+ game events per day using Kafka and Flink — same real-time data infrastructure problems, far less competed for.","tags":["gaming","real-time"]}],"titles":[{"id":"t1","label":"Staff Data Engineer","confidence":90}]}',
-    "Return ONLY raw valid JSON. No text before or after the JSON object.",
+    '{"companies":[{"id":"c1","label":"Snowflake","sub":"Cloud Data Platform","tags":["data-lake","cloud"],"confidence":92,"stage":"Public","talentDensity":88,"poachability":72,"likelyProfile":"Staff engineers building distributed query engines and data pipeline infrastructure at scale.","poachabilitySignals":["[Confirmed] Announced 20% headcount reduction in Q4 2024.","[Signal] Slower career progression at senior IC levels post-IPO."],"whyRelevant":"Core product is a data platform — engineers work on identical problems to this role."}],"adjacent":[{"id":"a1","label":"Tableau","sub":"BI engineers understand data modelling and query optimisation — transfers directly to a data catalog role.","tags":["bi","visualisation"]}],"wildcards":[{"id":"w1","label":"Riot Games","sub":"Handles 1B+ game events per day with Kafka and Flink — same real-time data infrastructure problems, far less competed for.","tags":["gaming","real-time"]}],"titles":[{"id":"t1","label":"Staff Engineer","confidence":90},{"id":"t2","label":"Principal Engineer","confidence":88},{"id":"t3","label":"\"Staff Data Engineer\" OR \"Principal Data Engineer\"","confidence":85}]}',
+    "Return ONLY raw valid JSON. No text before or after.",
   ].join("\n");
 }
 
