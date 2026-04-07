@@ -488,42 +488,51 @@ function XRayTab({ mapData, form }) {
   function buildStrings() {
     const strings = [];
     const coList = companies.slice(0,5).map(c=>`"${c}"`).join(" OR ");
+    // Last meaningful word of role for intitle: e.g. "Staff Software Engineer" -> "Engineer"
+    const roleWords = form.role.split(" ").filter(w => w.length > 3);
+    const lastWord  = roleWords[roleWords.length - 1] || form.role;
 
-    // ── TIER 1: Title + companies OR pool — best signal, still broad enough ────
+    // ── TIER 1: intitle:title + keywords (broad — all of LinkedIn) ────────────
+    // Format: site:linkedin.com/in intitle:"staff engineer" keywords
     titles.slice(0,4).forEach(title => {
-      // Titles with OR are already formatted as: "Staff Engineer" OR "Principal Engineer"
       const isOR = title.includes(" OR ");
-      const titleQ = isOR ? `(${title})` : `"${title}"`;
+      const intitleQ = isOR
+        ? title.split(" OR ").map(t => `intitle:${t.trim()}`).join(" OR ")
+        : `intitle:"${title}"`;
+      // All skills = AND (space-separated quoted terms)
+      const allSkillsHint = (form.skills||[]).filter(Boolean).map(s=>`"${s}"`).join(" ");
+      const skillHint = allSkillsHint ? ` ${allSkillsHint}` : "";
       strings.push({
         label: title,
         category: "Target Title",
         dot: "#1da882",
-        tag: "Most precise",
+        tag: "intitle + keywords",
         queries: [
-          coList
-            ? `site:${site} ${titleQ} (${coList})${locHint}`
-            : `site:${site} ${titleQ}${locHint}`,
-          skill1
-            ? `site:${site} ${titleQ} "${skill1}"${locHint}`
-            : null,
-        ].filter(Boolean),
+          `site:${site} ${intitleQ}${skillHint}${locHint}`,
+        ],
       });
     });
 
-    // ── TIER 2: Title + skill (without company constraint) ─────────────────────
-    if (skill1 && titles.length) {
-      const roleQ = form.role.includes(" OR ") ? `(${form.role})` : `"${form.role}"`;
+    // ── TIER 2: intitle:title + intitle:company + keywords (per company) ───────
+    // Format: site:linkedin.com/in intitle:"staff engineer" intitle:"databricks" keywords
+    companies.slice(0,6).forEach(co => {
+      const title = titles[0] || form.role;
+      const isOR = title.includes(" OR ");
+      const intitleQ = isOR
+        ? title.split(" OR ").map(t => `intitle:${t.trim()}`).join(" OR ")
+        : `intitle:"${title}"`;
+      const allSkillsHint2 = (form.skills||[]).filter(Boolean).map(s=>`"${s}"`).join(" ");
+      const skillHint2 = allSkillsHint2 ? ` ${allSkillsHint2}` : "";
       strings.push({
-        label: `${form.role} + ${skill1}`,
-        category: "Target Title",
-        dot: "#1da882",
-        tag: "Role + skill",
+        label: co,
+        category: "Target Company",
+        dot: "#4d64d8",
+        tag: "intitle title + intitle company",
         queries: [
-          `site:${site} ${roleQ} "${skill1}"${locHint}`,
-          skill2 ? `site:${site} ${roleQ} "${skill2}"${locHint}` : null,
-        ].filter(Boolean),
+          `site:${site} ${intitleQ} intitle:"${co}"${skillHint2}${locHint}`,
+        ],
       });
-    }
+    });
 
     // ── TIER 3: Per company — role only, then role + skill ─────────────────────
     companies.slice(0,6).forEach(co => {
@@ -550,7 +559,7 @@ function XRayTab({ mapData, form }) {
         tag: "Adjacent",
         queries: [
           `site:${site} "${co}" "${form.role}"${locHint}`,
-          skill1 ? `site:${site} "${co}" ${skill1} ${form.seniority}${locHint}` : null,
+          skill1 ? `site:${site} "${co}" "${skill1}" ${form.seniority}${locHint}` : null,
         ].filter(Boolean),
       });
     });
@@ -564,7 +573,7 @@ function XRayTab({ mapData, form }) {
         tag: "Wildcard",
         queries: [
           `site:${site} "${co}" "${form.role}"${locHint}`,
-          skill1 ? `site:${site} "${co}" ${skill1}${locHint}` : null,
+          skill1 ? `site:${site} "${co}" "${skill1}"${locHint}` : null,
         ].filter(Boolean),
       });
     });
