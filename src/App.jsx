@@ -688,14 +688,57 @@ function LoadingScreen() {
   const steps=TABS.filter(t=>t.id!=="candidates");
   useEffect(()=>{const iv=setInterval(()=>setStep(s=>(s+1)%steps.length),900);return()=>clearInterval(iv);},[]);
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
-      <div className="sc-spinner" style={{width:"24px",height:"24px",border:"2px solid #4d64d8",borderTopColor:"transparent",borderRadius:"50%"}}/>
-      <div className="space-y-2 text-center">
-        <div className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Mapping talent</div>
+    <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"28px"}}>
+
+      {/* Rotating compass */}
+      <div style={{position:"relative",width:"80px",height:"80px"}}>
+        {/* Outer ring — static */}
+        <svg width="80" height="80" viewBox="0 0 80 80" fill="none" style={{position:"absolute",inset:0}}>
+          <circle cx="40" cy="40" r="36" stroke="#e5e7eb" strokeWidth="1.5"/>
+          <circle cx="40" cy="40" r="28" stroke="#e5e7eb" strokeWidth="0.5" opacity="0.5"/>
+          {/* Cardinal ticks */}
+          {[0,90,180,270].map(deg=>(
+            <line key={deg}
+              x1={40 + 33*Math.sin(deg*Math.PI/180)}
+              y1={40 - 33*Math.cos(deg*Math.PI/180)}
+              x2={40 + 36*Math.sin(deg*Math.PI/180)}
+              y2={40 - 36*Math.cos(deg*Math.PI/180)}
+              stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round"/>
+          ))}
+        </svg>
+
+        {/* Needle — rotating */}
+        <svg width="80" height="80" viewBox="0 0 80 80" fill="none"
+          style={{position:"absolute",inset:0,animation:"compassSpin 2s ease-in-out infinite"}}>
+          {/* North needle — blue */}
+          <polygon points="40,10 37,40 40,36 43,40" fill="#4d64d8"/>
+          {/* South needle — grey */}
+          <polygon points="40,70 37,40 40,44 43,40" fill="#d1d5db"/>
+          {/* Center pivot */}
+          <circle cx="40" cy="40" r="4" fill="#ffffff" stroke="#4d64d8" strokeWidth="2"/>
+          <circle cx="40" cy="40" r="1.5" fill="#4d64d8"/>
+        </svg>
+      </div>
+
+      {/* Steps */}
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:"11px",color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:"14px",fontFamily:"Inter,sans-serif"}}>Mapping talent</div>
         {steps.map((t,i)=>(
-          <div key={t.id} className={`flex items-center justify-center gap-2 transition-all duration-300 ${i===step?"opacity-100":"opacity-20"}`}>
-            <div className="w-1.5 h-1.5 rounded-full" style={{background:t.dot}}/>
-            <span className="text-sm font-medium" style={{color:i===step?t.dot:"#6b7280"}}>{t.label}</span>
+          <div key={t.id} style={{
+            display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",
+            marginBottom:"6px",
+            opacity: i===step ? 1 : 0.2,
+            transition:"opacity 0.3s ease",
+          }}>
+            <div style={{width:"6px",height:"6px",borderRadius:"50%",background:t.dot,flexShrink:0,
+              boxShadow: i===step ? `0 0 6px ${t.dot}` : "none",
+              transition:"box-shadow 0.3s ease"}}/>
+            <span style={{
+              fontSize:"13px",fontWeight: i===step ? 600 : 400,
+              color: i===step ? t.dot : "#9ca3af",
+              fontFamily:"Inter,sans-serif",
+              transition:"color 0.3s ease",
+            }}>{t.label}</span>
           </div>
         ))}
       </div>
@@ -939,6 +982,14 @@ export default function TalentMap() {
       .sidebar-input { color: #bfc8d6 !important; }
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .sc-spinner { animation: spin 0.8s linear infinite; }
+      @keyframes compassSpin {
+        0%   { transform: rotate(0deg); }
+        20%  { transform: rotate(200deg); }
+        40%  { transform: rotate(170deg); }
+        60%  { transform: rotate(365deg); }
+        80%  { transform: rotate(350deg); }
+        100% { transform: rotate(360deg); }
+      }
     `}</style>
     <div className="flex h-screen overflow-hidden" style={{background:"#f0f4f8"}}>
 
@@ -1057,17 +1108,22 @@ export default function TalentMap() {
       {/* ── Canvas ── */}
       <div className="flex-1 relative overflow-y-auto min-w-0" style={{background:"#f0f4f8",overflowX:"visible"}}>
         {!generated && !loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
-            <div className="w-16 h-16 rounded-2xl bg-card border border-border flex items-center justify-center mb-5 shadow-card">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <polygon points="14,4 12,14 14,12.5 16,14" fill="hsl(var(--primary))"/>
-                <polygon points="14,24 12,14 14,15.5 16,14" fill="#e2e8f0"/>
-                <circle cx="14" cy="14" r="2" fill="white" stroke="hsl(var(--primary))" strokeWidth="1.5"/>
-                <circle cx="14" cy="14" r="10" stroke="hsl(var(--primary))" strokeWidth="1" opacity="0.15"/>
+          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"0 32px"}}>
+            <div style={{width:"80px",height:"80px",borderRadius:"20px",background:"#ffffff",border:"1px solid #e5e7eb",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:"20px",boxShadow:"0 4px 16px rgba(77,100,216,0.1)"}}>
+              <svg width="44" height="44" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="12" stroke="#4d64d8" strokeWidth="1.2" opacity="0.3"/>
+                <circle cx="14" cy="14" r="8" stroke="#4d64d8" strokeWidth="0.8" opacity="0.15"/>
+                <polygon points="14,3 12,14 14,12.5 16,14" fill="#4d64d8"/>
+                <polygon points="14,25 12,14 14,15.5 16,14" fill="#d1d5db"/>
+                <circle cx="14" cy="14" r="2" fill="white" stroke="#4d64d8" strokeWidth="1.5"/>
+                <line x1="14" y1="1" x2="14" y2="3" stroke="#4d64d8" strokeWidth="1" strokeLinecap="round"/>
+                <line x1="14" y1="25" x2="14" y2="27" stroke="#d1d5db" strokeWidth="1" strokeLinecap="round"/>
+                <line x1="1" y1="14" x2="3" y2="14" stroke="#d1d5db" strokeWidth="1" strokeLinecap="round"/>
+                <line x1="25" y1="14" x2="27" y2="14" stroke="#d1d5db" strokeWidth="1" strokeLinecap="round"/>
               </svg>
             </div>
-            <div className="text-base font-semibold text-foreground mb-2">Configure your search</div>
-            <div className="text-sm text-muted-foreground max-w-xs">Fill in the role, skills, and location — then generate a talent map</div>
+            <div style={{fontSize:"16px",fontWeight:600,color:"#111827",marginBottom:"8px",fontFamily:"Inter,sans-serif"}}>Configure your search</div>
+            <div style={{fontSize:"13px",color:"#9ca3af",maxWidth:"260px",lineHeight:1.5,fontFamily:"Inter,sans-serif"}}>Fill in the role, skills, and location — then generate a talent map</div>
           </div>
         )}
 
