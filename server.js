@@ -161,19 +161,24 @@ app.post("/api/source", async (req, res) => {
   const site = locConfig.site;
   const locHint = locConfig.loc ? ` "${locConfig.loc}"` : "";
 
-  // Build skill constraints — must-haves go in as quoted terms
   const mustSkills = (skills || []).filter(s => s && s.trim()).slice(0, 3);
   const skillQuery = mustSkills.map(s => `"${s}"`).join(" ");
 
   const queries = targets.flatMap(company => {
-    // q1: company + role + ALL must-have skills (quoted = mandatory match)
-    const q1 = skillQuery
-      ? `site:${site} "${company}" "${role}" ${skillQuery}${locHint}`
-      : `site:${site} "${company}" "${role}"${locHint}`;
-    // q2: company + top skill only + seniority (broader fallback)
-    const q2 = topSkill
-      ? `site:${site} "${company}" "${topSkill}" ${seniority}${locHint}`
-      : `site:${site} "${company}" "${role}" ${seniority}${locHint}`;
+    // q1: intitle: = current job title must contain the role (most precise)
+    // This works because LinkedIn page title = "Name - Current Title at Company | LinkedIn"
+    const roleWords = role.split(" ").filter(w => w.length > 3);
+    const titleHint = roleWords.length > 0
+      ? `intitle:"${roleWords[roleWords.length - 1]}"` // e.g. intitle:"Engineer"
+      : "";
+
+    // q2 uses intext: for skill — must appear in profile body
+    const skillHint = topSkill ? `intext:"${topSkill}"` : "";
+
+    const q1 = `site:${site} ${titleHint} "${company}" "${role}"${locHint}`.trim();
+    const q2 = skillHint
+      ? `site:${site} ${titleHint} "${company}" ${skillHint}${locHint}`.trim()
+      : `site:${site} "${company}" "${role}" ${seniority}${locHint}`.trim();
     return [q1, q2];
   });
 
