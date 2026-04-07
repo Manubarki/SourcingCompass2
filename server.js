@@ -124,7 +124,7 @@ app.post("/api/generate", async (req, res) => {
     const industries = (prompt.match(/Preferred Industries:\s*(.+)/)?.[1] || "").split(",").map(s=>s.trim());
     const companies = await getMemory();
     const companyList = companies.length > 0
-      ? "\n\nVERIFIED COMPANY LIST — only suggest companies from this list:\n" + getRelevant(companies, role, skills, industries)
+      ? "\n\nVERIFIED COMPANY LIST — for Target Companies ONLY use companies from this list. Adjacent and Wildcards may go beyond this list but must still be real, active companies:\n" + getRelevant(companies, role, skills, industries)
       : "";
     const text = await callLLM(prompt + companyList);
     res.json({ content: [{ type: "text", text }] });
