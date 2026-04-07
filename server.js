@@ -241,9 +241,23 @@ app.post("/api/source", async (req, res) => {
     );
   }
 
+  // Title relevance — at least one word from the searched role must appear in profile title
+  // This is role-agnostic: works for engineering, CS, PM, legal, finance etc.
+  const roleKeywords = role.toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 3) // skip short words like "of", "and", "the"
+    .map(w => w.replace(/s$/, "")); // basic stemming: "engineers" -> "engineer"
+
+  function isTitleRelevant(c) {
+    const title = (c.currentTitle || "").toLowerCase();
+    if (!title) return true; // no title parsed — give benefit of doubt
+    // At least one meaningful word from the role must appear in their title
+    return roleKeywords.some(word => title.includes(word));
+  }
+
   // Post-filter: snippet or title must contain at least one must-have skill
   function hasRequiredSkill(c) {
-    if (!mustSkills.length) return true; // no skills specified = no filter
+    if (!mustSkills.length) return true;
     const text = [c.currentTitle, c.snippet].join(" ").toLowerCase();
     return mustSkills.some(skill => text.includes(skill.toLowerCase()));
   }
@@ -255,12 +269,16 @@ app.post("/api/source", async (req, res) => {
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      return c.name && c.name !== "Unknown" && isFromTargetCompany(c) && hasRequiredSkill(c);
+      if (!c.name || c.name === "Unknown") return false;
+      if (!isFromTargetCompany(c)) return false;
+      if (!isTitleRelevant(c)) { console.log(`[FILTER] Excluded by title mismatch: "${c.currentTitle}" vs role "${role}" — ${c.name}`); return false; }
+      if (!hasRequiredSkill(c)) { console.log(`[FILTER] Excluded missing skills: ${c.name}`); return false; }
+      return true;
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
 
-  console.log(`[SOURCE] After filters: ${candidates.length} candidates (skills: ${mustSkills.join(", ")||"none"})`);
+  console.log(`[SOURCE] After filters: ${candidates.length} candidates (role: ${role}, skills: ${mustSkills.join(", ")||"none"})`);
   res.json({ candidates });
 });
 
