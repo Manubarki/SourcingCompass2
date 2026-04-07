@@ -246,51 +246,101 @@ function Section({ cat, nodes }) {
 }
 
 // ─── Candidate card ───────────────────────────────────────────────────────────
-function CandidateCard({ candidate, index }) {
+// Highlight keywords in text — wraps matches in a styled span
+function highlight(text, keywords) {
+  if (!text || !keywords?.length) return <span>{text}</span>;
+  const clean = keywords.filter(k => k && k.length > 2);
+  if (!clean.length) return <span>{text}</span>;
+  const pattern = new RegExp(`(${clean.map(k => k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")})`, "gi");
+  const parts = text.split(pattern);
+  return (
+    <span>
+      {parts.map((part, i) =>
+        pattern.test(part)
+          ? <mark key={i} style={{background:"#fef3c7",color:"#92400e",borderRadius:"3px",padding:"0 2px",fontWeight:600}}>{part}</mark>
+          : <span key={i}>{part}</span>
+      )}
+    </span>
+  );
+}
+
+function CandidateCard({ candidate, index, keywords }) {
   const initials = candidate.name.split(" ").slice(0,2).map(w=>w[0]||"").join("").toUpperCase()||"?";
   const colors = ["#4d64d8","#1da882","#9b6ef5","#f6720d","#f04e7c"];
   const color = colors[index % colors.length];
   return (
-    <div className="bg-card border border-border rounded-lg p-4 hover:shadow-card-hover transition-all duration-200 group">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold border"
-          style={{background:`${color}15`,borderColor:`${color}40`,color}}>
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-foreground">{candidate.name}</div>
-              {candidate.currentTitle && <div className="text-xs text-muted-foreground mt-0.5">{candidate.currentTitle}</div>}
+    <div style={{
+      background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:"12px",
+      padding:"16px", transition:"box-shadow .15s, border-color .15s",
+      borderLeft:`3px solid ${color}`,
+    }}
+      onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.08)";e.currentTarget.style.borderColor=color;}}
+      onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor="#e5e7eb";e.currentTarget.style.borderLeftColor=color;}}>
+
+      {/* Header row */}
+      <div style={{display:"flex",alignItems:"flex-start",gap:"12px"}}>
+        {/* Avatar */}
+        <div style={{
+          width:"44px",height:"44px",borderRadius:"50%",flexShrink:0,
+          display:"flex",alignItems:"center",justifyContent:"center",
+          fontSize:"13px",fontWeight:700,fontFamily:"Inter,sans-serif",
+          background:`${color}15`,border:`1.5px solid ${color}40`,color,
+        }}>{initials}</div>
+
+        {/* Name + title + company */}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"8px"}}>
+            <div>
+              <div style={{fontSize:"14px",fontWeight:700,color:"#111827",fontFamily:"Inter,sans-serif"}}>
+                {candidate.name}
+              </div>
+              {candidate.currentTitle && (
+                <div style={{fontSize:"12px",color:"#6b7280",marginTop:"2px",fontFamily:"Inter,sans-serif"}}>
+                  {highlight(candidate.currentTitle, keywords)}
+                </div>
+              )}
               {candidate.currentCompany && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{background:color}}/>
-                  <span className="text-xs font-medium" style={{color}}>{candidate.currentCompany}</span>
+                <div style={{display:"flex",alignItems:"center",gap:"5px",marginTop:"4px"}}>
+                  <div style={{width:"6px",height:"6px",borderRadius:"50%",background:color,flexShrink:0}}/>
+                  <span style={{fontSize:"12px",fontWeight:600,color,fontFamily:"Inter,sans-serif"}}>{candidate.currentCompany}</span>
                 </div>
               )}
             </div>
             <a href={candidate.linkedinUrl} target="_blank" rel="noopener noreferrer"
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-white transition-all hover:opacity-90"
-              style={{background:"linear-gradient(135deg,#0077b5,#0a66c2)",textDecoration:"none"}}>
+              style={{flexShrink:0,display:"flex",alignItems:"center",gap:"5px",padding:"6px 12px",
+                borderRadius:"6px",fontSize:"11px",fontWeight:600,color:"#fff",
+                background:"linear-gradient(135deg,#0077b5,#0a66c2)",textDecoration:"none"}}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
               </svg>
               View
             </a>
           </div>
-          {candidate.email && (
-            <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-accent/10 border border-accent/20">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-              </svg>
-              <span className="text-xs text-accent font-medium">{candidate.email}</span>
-            </div>
-          )}
-          {candidate.snippet && (
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed line-clamp-2 group-hover:text-foreground/60 transition-colors">{candidate.snippet}</p>
-          )}
         </div>
       </div>
+
+      {/* Email */}
+      {candidate.email && (
+        <div style={{marginTop:"10px",display:"flex",alignItems:"center",gap:"6px",
+          padding:"6px 10px",borderRadius:"6px",background:"#f0fdf9",border:"1px solid #a7f3d0"}}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#1da882" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+          <span style={{fontSize:"11px",color:"#1da882",fontWeight:600,fontFamily:"Inter,sans-serif"}}>{candidate.email}</span>
+        </div>
+      )}
+
+      {/* Snippet with keyword highlighting */}
+      {candidate.snippet && (
+        <div style={{marginTop:"10px",padding:"10px 12px",background:"#f9fafb",borderRadius:"8px",
+          border:"1px solid #f3f4f6"}}>
+          <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",
+            letterSpacing:"0.08em",marginBottom:"5px",fontFamily:"Inter,sans-serif"}}>Profile snippet</div>
+          <p style={{fontSize:"12px",color:"#374151",lineHeight:1.6,fontFamily:"Inter,sans-serif",margin:0}}>
+            {highlight(candidate.snippet, keywords)}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -398,8 +448,8 @@ function CandidatesTab({ mapData, form }) {
                   <button type="button" onClick={source} className="px-3 py-1.5 rounded-md text-xs font-semibold border border-border text-muted-foreground hover:border-primary hover:text-primary transition-all">Re-run</button>
                 </div>
               </div>
-              <div className="flex flex-col gap-3">
-                {candidates.map((c,i)=><CandidateCard key={c.linkedinUrl} candidate={c} index={i}/>)}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:"12px"}}>
+                {candidates.map((c,i)=><CandidateCard key={c.linkedinUrl} candidate={c} index={i} keywords={[form.role,...(form.skills||[]),form.seniority].filter(Boolean)}/>)}
               </div>
               <div className="mt-4 text-xs text-muted-foreground text-center">X-ray sourced · always verify before outreach</div>
             </>
