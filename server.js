@@ -161,12 +161,18 @@ app.post("/api/source", async (req, res) => {
   const site = locConfig.site;
   const locHint = locConfig.loc ? ` "${locConfig.loc}"` : "";
 
+  // Build skill constraints — must-haves go in as quoted terms
+  const mustSkills = (skills || []).filter(s => s && s.trim()).slice(0, 3);
+  const skillQuery = mustSkills.map(s => `"${s}"`).join(" ");
+
   const queries = targets.flatMap(company => {
-    // q1: company + role + location hint
-    const q1 = `site:${site} "${company}" "${role}"${locHint}`;
-    // q2: add skill or seniority as soft hint
+    // q1: company + role + ALL must-have skills (quoted = mandatory match)
+    const q1 = skillQuery
+      ? `site:${site} "${company}" "${role}" ${skillQuery}${locHint}`
+      : `site:${site} "${company}" "${role}"${locHint}`;
+    // q2: company + top skill only + seniority (broader fallback)
     const q2 = topSkill
-      ? `site:${site} "${company}" "${role}" ${topSkill}${locHint}`
+      ? `site:${site} "${company}" "${topSkill}" ${seniority}${locHint}`
       : `site:${site} "${company}" "${role}" ${seniority}${locHint}`;
     return [q1, q2];
   });
@@ -235,6 +241,13 @@ app.post("/api/source", async (req, res) => {
     );
   }
 
+  // Post-filter: snippet or title must contain at least one must-have skill
+  function hasRequiredSkill(c) {
+    if (!mustSkills.length) return true; // no skills specified = no filter
+    const text = [c.currentTitle, c.snippet].join(" ").toLowerCase();
+    return mustSkills.some(skill => text.includes(skill.toLowerCase()));
+  }
+
   const seen = new Set();
   const candidates = rawResults
     .map(parseCandidate)
@@ -242,12 +255,12 @@ app.post("/api/source", async (req, res) => {
     .filter(c => {
       if (seen.has(c.linkedinUrl)) return false;
       seen.add(c.linkedinUrl);
-      return c.name && c.name !== "Unknown" && isFromTargetCompany(c);
+      return c.name && c.name !== "Unknown" && isFromTargetCompany(c) && hasRequiredSkill(c);
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, 30);
 
-  console.log(`[SOURCE] After filters: ${candidates.length} candidates`);
+  console.log(`[SOURCE] After filters: ${candidates.length} candidates (skills: ${mustSkills.join(", ")||"none"})`);
   res.json({ candidates });
 });
 
