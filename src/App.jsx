@@ -759,7 +759,7 @@ function buildPrompt(form) {
     "Exclusions: "+(form.exclusions.join(", ")||"None"),
     "",
     'Return: {"companies":[{"id":"c1","label":"Name","sub":"Industry","tags":["t"],"confidence":85,"stage":"Series B","talentDensity":78,"poachability":65,"likelyProfile":"sentence.","poachabilitySignals":["[Signal] x"],"whyRelevant":"sentence."}],"adjacent":[{"id":"a1","label":"Name","sub":"Why","tags":["t"]}],"wildcards":[{"id":"w1","label":"Name","sub":"Reason","tags":["t"]}],"titles":[{"id":"t1","label":"Title","sub":"Companies","tags":["t"],"confidence":90}]}',
-    "Rules: 6-8 companies, NEVER include "+form.company+", adjacent=4-5 companies, wildcards=3-4 TECH companies, titles=5-7 exact job titles. CRITICAL: Return ONLY raw valid JSON. No apostrophes or special characters inside string values — use plain English only.",
+    "Rules: 6-8 companies, NEVER include "+form.company+". Keep ALL string values SHORT (under 15 words). No apostrophes, quotes, or special characters inside strings. adjacent=4-5 companies, wildcards=3-4 TECH companies, titles=5-7 exact job titles. CRITICAL: Return ONLY complete valid JSON — do not truncate.",
   ].join("\n");
 }
 
