@@ -81,7 +81,14 @@ function TagInput({ placeholder, tags, onChange }) {
 }
 
 // ─── Score bar ────────────────────────────────────────────────────────────────
-function Bar({ label, value, color, track }) {
+function scoreColor(value) {
+  if (value >= 80) return { color:"#16a34a", track:"rgba(22,163,74,0.12)" };  // green — high
+  if (value >= 60) return { color:"#d97706", track:"rgba(217,119,6,0.12)"  };  // amber — medium
+  return              { color:"#dc2626", track:"rgba(220,38,38,0.12)"  };       // red — low
+}
+
+function Bar({ label, value }) {
+  const { color, track } = scoreColor(value ?? 0);
   return (
     <div style={{marginTop:"10px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"6px"}}>
@@ -89,7 +96,7 @@ function Bar({ label, value, color, track }) {
         <span style={{fontSize:"13px",fontWeight:700,fontFamily:"'JetBrains Mono',monospace",color}}>{value}</span>
       </div>
       <div style={{width:"100%",height:"6px",borderRadius:"999px",background:track}}>
-        <div style={{height:"100%",borderRadius:"999px",background:color,width:`${value}%`,transition:"width 0.7s ease"}}/>
+        <div style={{height:"100%",borderRadius:"999px",background:color,width:`${(value??0)}%`,transition:"width 0.7s ease"}}/>
       </div>
     </div>
   );
@@ -130,9 +137,9 @@ function CompanyCard({ node }) {
           ))}
         </div>
       )}
-      <Bar label="Relevance" value={node.confidence??0} color="#1da882" track="rgba(29,168,130,0.12)"/>
-      <Bar label="Talent Density" value={node.talentDensity??0} color="#4d64d8" track="rgba(77,100,216,0.12)"/>
-      <Bar label="Poachability" value={node.poachability??0} color="#4d64d8" track="rgba(77,100,216,0.12)"/>
+      <Bar label="Relevance" value={node.confidence??0}/>
+      <Bar label="Talent Density" value={node.talentDensity??0}/>
+      <Bar label="Poachability" value={node.poachability??0}/>
       {node.likelyProfile && (
         <div style={{marginTop:"12px",paddingTop:"12px",borderTop:"1px solid #f3f4f6"}}>
           <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"4px",fontFamily:"Inter,sans-serif"}}>Likely Profile</div>
@@ -189,7 +196,7 @@ function SimpleCard({ node, cat }) {
         </div>
       )}
       {cat==="titles" && node.confidence != null && (
-        <Bar label="Confidence" value={node.confidence} color="#1da882" track="rgba(29,168,130,0.12)"/>
+        <Bar label="Confidence" value={node.confidence}/>
       )}
     </div>
   );
