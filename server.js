@@ -88,7 +88,7 @@ async function callEndpoint(url, apiKey, prompt, maxTokens) {
 }
 
 // Primary: Atlan LiteLLM proxy — Fallback: Anthropic direct
-async function callLLM(prompt, maxTokens = 6000) {
+async function callLLM(prompt, maxTokens = 8000) {
   if (process.env.LITELLM_API_KEY) {
     try {
       console.log("[LLM] Trying primary (LiteLLM proxy)...");
@@ -123,7 +123,51 @@ app.post("/api/generate", async (req, res) => {
     const companyList = companies.length > 0
       ? "\n\nVERIFIED COMPANY LIST — only suggest companies from this list:\n" + getRelevant(companies, role, skills, industries)
       : "";
-    const text = await callLLM(prompt + companyList);
+    const raw = await callLLM(prompt + companyList);
+
+    // Sanitise and validate JSON before sending to client
+    let text = raw;
+    try {
+      // Extract outermost JSON object
+      const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
+      if (s !== -1 && e !== -1) {
+        let clean = raw.slice(s, e + 1);
+        // Remove control chars and problematic Unicode
+        clean = clean.replace(/[\u0000-\u001F\u007F]/g, " ");
+        // Test parse — if it fails, try to fix truncated JSON by closing open structures
+        try {
+          JSON.parse(clean);
+          text = clean;
+        } catch {
+          // Count unclosed brackets and close them
+          let opens = 0, openSquare = 0;
+          for (const ch of clean) {
+            if (ch === "{") opens++;
+            else if (ch === "}") opens--;
+            else if (ch === "[") openSquare++;
+            else if (ch === "]") openSquare--;
+          }
+          // Close any open arrays first, then objects
+          const closing = "]".repeat(Math.max(0, openSquare)) + "}".repeat(Math.max(0, opens));
+          // Remove trailing incomplete property (find last complete key-value pair)
+          const lastComma = clean.lastIndexOf(",");
+          const lastBrace  = clean.lastIndexOf("}");
+          if (lastComma > lastBrace) clean = clean.slice(0, lastComma);
+          clean = clean + closing;
+          try {
+            JSON.parse(clean); // verify
+            text = clean;
+            console.log("[PARSE] Fixed truncated JSON by closing open structures");
+          } catch(e2) {
+            console.warn("[PARSE] Could not repair JSON:", e2.message);
+            text = raw; // send raw and let client handle error
+          }
+        }
+      }
+    } catch(sanitiseErr) {
+      console.warn("[PARSE] Sanitise step failed:", sanitiseErr.message);
+    }
+
     res.json({ content: [{ type: "text", text }] });
   } catch(err) {
     res.status(500).json({ error: err.message });
