@@ -148,7 +148,7 @@ function CompanyCard({ node }) {
       )}
       {node.poachabilitySignals?.length > 0 && (
         <div style={{marginTop:"10px",paddingTop:"10px",borderTop:"1px solid #f3f4f6"}}>
-          <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"8px",fontFamily:"Inter,sans-serif"}}>Poachability Signals</div>
+          <div style={{fontSize:"10px",color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"8px",fontFamily:"Inter,sans-serif"}}>Signals</div>
           {node.poachabilitySignals.map((sig,i)=>{
             const isConfirmed = sig.toLowerCase().startsWith("[confirmed]");
             const isSignal    = sig.toLowerCase().startsWith("[signal]");
@@ -779,8 +779,8 @@ function buildPrompt(form) {
     "Preferred Industries: "+(form.industries.join(", ")||"Any"),
     "Exclusions: "+(form.exclusions.join(", ")||"None"),
     "",
-    'Return: {"companies":[{"id":"c1","label":"Name","sub":"Industry","tags":["t"],"confidence":85,"stage":"Series B","talentDensity":78,"poachability":65,"likelyProfile":"sentence.","poachabilitySignals":["[Signal] x"],"whyRelevant":"sentence."}],"adjacent":[{"id":"a1","label":"Name","sub":"Why","tags":["t"]}],"wildcards":[{"id":"w1","label":"Name","sub":"Reason","tags":["t"]}],"titles":[{"id":"t1","label":"Title","sub":"Companies","tags":["t"],"confidence":90}]}',
-    "Rules: 6-8 companies, NEVER include "+form.company+", adjacent=4-5 companies, wildcards=3-4 TECH companies, titles=5-7 exact job titles, Return ONLY raw valid JSON.",
+    'Return: {"companies":[{"id":"c1","label":"Name","sub":"Industry","tags":["t"],"confidence":85,"stage":"Series B","talentDensity":78,"poachability":65,"likelyProfile":"sentence.","poachabilitySignals":["[Confirmed] Specific reported fact here","[Signal] Inferred pattern here"],"whyRelevant":"sentence."}],"adjacent":[{"id":"a1","label":"Name","sub":"Why","tags":["t"]}],"wildcards":[{"id":"w1","label":"Name","sub":"Reason","tags":["t"]}],"titles":[{"id":"t1","label":"Title","sub":"Companies","tags":["t"],"confidence":90}]}',
+    "Rules: 6-8 companies, NEVER include "+form.company+", adjacent=4-5 companies, wildcards=3-4 TECH companies, titles=5-7 exact job titles, Return ONLY raw valid JSON. CRITICAL for poachabilitySignals: every signal MUST start with exactly [Confirmed] (for widely reported facts: layoffs, acquisitions, valuation markdowns) or [Signal] (for inferred patterns: slow promotions, equity lock-up, burnout culture). Example: \"[Confirmed] Laid off 20% in Q3 2024\" or \"[Signal] Slow promotion cycles at senior levels\".",
   ].join("\n");
 }
 
